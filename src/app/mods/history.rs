@@ -1,4 +1,4 @@
-use egui_extras::{Size, TableBuilder};
+use egui_extras::{Size, TableBuilder, StripBuilder};
 use std::collections::BTreeMap;
 use crate::app::backend::dbutils;
 use poll_promise::Promise;
@@ -13,6 +13,9 @@ pub struct History {
 
     #[serde(skip)]
     history: Vec<dbutils::HistLine>,
+
+    #[serde(skip)]
+    current_top_id: usize,
 }
 
 impl Default for History {
@@ -21,6 +24,7 @@ impl Default for History {
             last_id: 0,
             inspectors: vec![],
             history: vec![],
+            current_top_id: 0,
         }
     }
 }
@@ -52,45 +56,38 @@ impl super::Component for History {
         "History"
     }
 
-    fn show(&mut self, ctx: &egui::Context, open: &mut bool, path: &Option<String>) {
-        egui::Area::new("")
-            .enabled(*open)
-            .anchor(egui::Align2::LEFT_TOP, [0.0, 0.0])
-            .show(ctx, |ui| {
-                use super::View as _;
-                self.ui(ui, path);
-            });
-
-    }
-}
-
-impl super::View for History {
-    fn ui(&mut self, ui: &mut egui::Ui, path: &Option<String>) {
+    fn show(&mut self, ctx: &egui::Context, _open: &mut bool, path: &Option<String>) {
         if let Some(path) = path {
             egui::Window::new("History")
-                .anchor(egui::Align2::LEFT_TOP, [0.0, 0.0])
                 .scroll2([true, true])
-                .default_width(1024.0)
+                .resizable(true)
                 .title_bar(false)
-                .show(ui.ctx(), |ui| {
+                .default_width(1024.0)
+                .anchor(egui::Align2::LEFT_TOP, [0.0, 0.0])
+                .show(ctx, |ui| {
                     self.show_table(ui, path);
                 });
 
             for mut inspector in &mut self.inspectors {
-    
+
                 if inspector.is_active {
                     egui::Window::new(format!("Viewing #{}", inspector.id))
                         .title_bar(false)
                         .collapsible(true)
                         .scroll2([true, true])
                         .default_width(1024.0)
-                        .show(ui.ctx(), |ui| {
+                        .show(ctx, |ui| {
                             inspect(ui, &mut inspector);
                         });
                 }
                 
             }
         }
+    }
+}
+
+impl super::View for History {
+    fn ui(&mut self, _ui: &mut egui::Ui, _path: &Option<String>) {
         
     }
 }
@@ -260,51 +257,23 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
 
 impl History {
     
-
-    fn show_table(&mut self, ui: &mut egui::Ui, path: &String) {
+    fn tbl_ui(&mut self, ui: &mut egui::Ui) {
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
-        if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
-            for row in rows {
-                self.history.insert(0, row);
-            }
-        }
         TableBuilder::new(ui)
             .striped(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Size::initial(30.0).at_least(30.0))
-            .column(Size::initial(80.0).at_least(80.0))
-            .column(Size::remainder().at_least(400.0))
-            .column(Size::initial(60.0).at_least(40.0))
-            .column(Size::initial(70.0).at_least(70.0))
-            .column(Size::initial(90.0).at_least(60.0))
-            .column(Size::initial(60.0).at_least(40.0))
+            .column(Size::initial(30.0).at_least(30.0).at_most(30.0))
+            .column(Size::initial(80.0).at_least(80.0).at_most(80.0))
+            .column(Size::initial(400.0).at_least(400.0).at_most(600.0))
+            .column(Size::initial(60.0).at_least(40.0).at_most(60.0))
+            .column(Size::initial(70.0).at_least(70.0).at_most(70.0))
+            .column(Size::initial(90.0).at_least(60.0).at_most(90.0))
+            .column(Size::initial(60.0).at_most(60.0).at_least(40.0))
             .resizable(true)
+            .scroll(true)
             .stick_to_bottom(false)
-            .header(20.0, |mut header| {
-                header.col(|ui| {
-                    ui.heading("ID");
-                });
-                header.col(|ui| {
-                    ui.heading("METHOD");
-                });
-                header.col(|ui| {
-                    ui.heading("URL");
-                });
-                header.col(|ui| {
-                    ui.heading("SIZE");
-                });
-                header.col(|ui| {
-                    ui.heading("STATUS");
-                });
-                header.col(|ui| {
-                    ui.heading("TTR");
-                });
-                header.col(|ui| {
-                    ui.heading("ACTIONS");
-                });
-            })
             .body(|mut body| {
-                for histline in &self.history {
+                for histline in &self.history[..100] {
                     if histline.id > self.last_id {
                         self.last_id = histline.id;
                     }
@@ -346,6 +315,42 @@ impl History {
                     })
                 }
             });
-        ui.separator();
+    }
+
+    fn show_table(&mut self, ui: &mut egui::Ui, path: &String) {
+        ui.vertical(|ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.label("History");
+                });
+                ui.separator();
+            });
+            
+            if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
+                for row in rows {
+                    self.history.insert(0, row);
+                }
+            }
+            StripBuilder::new(ui)
+                .size(Size::initial(1024.0).at_most(1280.0).at_least(1024.0))
+                .vertical(|mut strip| {
+                    strip.cell(|ui| {
+                        self.tbl_ui(ui);
+                    });
+                });
+            
+
+            ui.separator();
+            egui::menu::bar(ui, |ui| {
+            
+                ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
+                    ui.horizontal(|ui| {
+                        if ui.button(">").clicked() {}
+                        if ui.button("<").clicked() {};
+                    });
+                    
+                });
+            });
+        });
     }
 }

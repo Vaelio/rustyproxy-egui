@@ -103,9 +103,7 @@ impl eframe::App for TemplateApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
             if self.picked_path.is_some() {
-                ui.vertical(|_| {
-                    self.components.windows(ctx, &self.picked_path);
-                });
+                self.components.windows(ctx, &self.picked_path);
             } else {
                 if ui.button("🗀 Open project").clicked() {
                     if let Some(path) = rfd::FileDialog::new().pick_folder() {
