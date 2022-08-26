@@ -1,7 +1,8 @@
-use egui_extras::{Size, TableBuilder, StripBuilder};
+use egui_extras::{Size, TableBuilder};
 use std::collections::BTreeMap;
 use crate::app::backend::dbutils;
 use poll_promise::Promise;
+use std::ops::Range;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -17,7 +18,11 @@ pub struct History {
     #[serde(skip)]
     current_top_id: usize,
 
-    is_minimized: bool
+    is_minimized: bool,
+
+    current_page: usize,
+
+    items_per_page: usize,
 }
 
 impl Default for History {
@@ -28,6 +33,8 @@ impl Default for History {
             history: vec![],
             current_top_id: 0,
             is_minimized: false,
+            current_page: 0,
+            items_per_page: 10,
         }
     }
 }
@@ -63,7 +70,7 @@ impl super::Component for History {
     fn show(&mut self, ctx: &egui::Context, _open: &mut bool, path: &Option<String>) {
         if let Some(path) = path {
             egui::Window::new("History")
-                .scroll2([true, true])
+                .scroll2([true, false])
                 .resizable(true)
                 .title_bar(false)
                 .default_width(1024.0)
@@ -275,18 +282,23 @@ impl History {
         TableBuilder::new(ui)
             .striped(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Size::initial(30.0).at_least(30.0).at_most(30.0))
-            .column(Size::initial(80.0).at_least(80.0).at_most(80.0))
-            .column(Size::initial(400.0).at_least(400.0).at_most(600.0))
-            .column(Size::initial(60.0).at_least(40.0).at_most(60.0))
-            .column(Size::initial(70.0).at_least(70.0).at_most(70.0))
-            .column(Size::initial(90.0).at_least(60.0).at_most(90.0))
-            .column(Size::initial(60.0).at_most(60.0).at_least(40.0))
+            .column(Size::exact(40.0))
+            .column(Size::exact(80.0))
+            .column(Size::remainder().at_least(400.0).at_most(600.0))
+            .column(Size::exact(60.0))
+            .column(Size::exact(70.0))
+            .column(Size::exact(90.0))
+            .column(Size::exact(60.0))
             .resizable(true)
-            .scroll(true)
+            .scroll(false)
             .stick_to_bottom(false)
             .body(|mut body| {
-                for histline in &self.history[..100] {
+                let mut range = Range {
+                    start: self.current_page*self.items_per_page,
+                    end: (self.current_page+1)*self.items_per_page,
+                };
+                range.end = if range.end > self.history.len() { self.history.len() } else { range.end };
+                for histline in &self.history[range] {
                     if histline.id > self.last_id {
                         self.last_id = histline.id;
                     }
@@ -331,6 +343,7 @@ impl History {
             });
     }
 
+
     fn show_table(&mut self, ui: &mut egui::Ui, path: &String) {
         ui.vertical(|ui| {
             egui::menu::bar(ui, |ui| {
@@ -342,9 +355,13 @@ impl History {
                             ui.ctx().request_repaint();
                         }
                         ui.separator();
+                        let txt = format!("{} Queries", self.history.len());
+                        ui.label(txt);
+                        ui.separator();
                         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                             ui.label("History");
                         });
+                        
                     });
                     
                 });
@@ -357,24 +374,37 @@ impl History {
             }
 
             if !self.is_minimized {
-                StripBuilder::new(ui)
-                    .size(Size::initial(1024.0).at_most(1280.0).at_least(1024.0))
-                    .vertical(|mut strip| {
-                        strip.cell(|ui| {
-                            self.tbl_ui(ui);
-                        });
-                    });
+                egui::ScrollArea::both()
+                    .max_width(900.0)
+                    .max_height(400.0)
+                    .show(ui, |ui| {
+                        self.tbl_ui(ui);
+                });
+                
             }
             
             
 
             ui.separator();
             egui::menu::bar(ui, |ui| {
-            
+                let lbl = format!("Current page: {}", self.current_page);
+                ui.label(lbl);
+                ui.label("⬌ Items per page: ");
+                ui.add(
+                    egui::Slider::new(&mut self.items_per_page, (10 as usize)..=(1000 as usize))
+                );
                 ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                     ui.horizontal(|ui| {
-                        if ui.button(">").clicked() {}
-                        if ui.button("<").clicked() {};
+                        if ui.button(">").clicked() {
+                            if self.history.len() - (self.current_page*self.items_per_page) > self.items_per_page {
+                                self.current_page += 1;
+                            }
+                        }
+                        if ui.button("<").clicked() {
+                            if self.current_page != 0 {
+                                self.current_page -= 1;
+                            }
+                        };
                     });
                     
                 });
