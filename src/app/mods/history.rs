@@ -16,6 +16,8 @@ pub struct History {
 
     #[serde(skip)]
     current_top_id: usize,
+
+    is_minimized: bool
 }
 
 impl Default for History {
@@ -25,6 +27,7 @@ impl Default for History {
             inspectors: vec![],
             history: vec![],
             current_top_id: 0,
+            is_minimized: false,
         }
     }
 }
@@ -47,6 +50,7 @@ struct Inspector {
     target: String,
     active_window: ActiveInspectorMenu,
     is_active: bool,
+    is_minimized: bool,
 }
 
 
@@ -138,8 +142,14 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
         ui.separator();
         ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
             ui.horizontal(|ui| {
-                if ui.button("X").clicked() {
+                if ui.button("x").clicked() {
                     inspected.is_active = false;
+                    ui.ctx().request_repaint();
+                }
+                ui.separator();
+                let bt = if inspected.is_minimized { "+" } else { "-" };
+                if ui.button(bt).clicked() {
+                    inspected.is_minimized = !inspected.is_minimized;
                     ui.ctx().request_repaint();
                 }
                 ui.separator();
@@ -160,98 +170,101 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
         });
     });
     ui.separator();
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        match inspected.active_window {
-            ActiveInspectorMenu::Repeater => {
-                egui::menu::bar(ui, |ui| {
-                    if ui.button("⚠ Reset").clicked() {
-                        inspected.modified_request = inspected.request.to_string();
-                        inspected.new_response = inspected.response.to_string();
-                    }
-                    ui.separator();
-                    if ui.button("✉ Send").clicked() {
-                        /* TODO: Parse request */
-                        let method = inspected.modified_request.split(" ").take(1).collect::<String>();
-                        let uri = inspected.modified_request.split(" ").skip(1).take(1).collect::<String>();
-                        let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
-                        let body = inspected.modified_request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
-                        let mut headers = BTreeMap::new();
-
-                        for header in inspected.modified_request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
-                            let name = header.split(": ").take(1).collect::<String>();
-                            let value = header.split(": ").skip(1).collect::<String>();
-                            headers.insert(name, value);
+    if !inspected.is_minimized {
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            match inspected.active_window {
+                ActiveInspectorMenu::Repeater => {
+                    egui::menu::bar(ui, |ui| {
+                        if ui.button("⚠ Reset").clicked() {
+                            inspected.modified_request = inspected.request.to_string();
+                            inspected.new_response = inspected.response.to_string();
                         }
-
-                        //println!("method: {}\nuri: {}\nurl: {}\nbody: {:?}\nheaders: {:?}", method, uri, url, body, headers);
-                        /* Actually send the request */
-                        let ctx = ui.ctx();
-                        let promise = inspected.response_promise.get_or_insert_with(|| {
-                            // Begin download.
-                            // We download the image using `ehttp`, a library that works both in WASM and on native.
-                            // We use the `poll-promise` library to communicate with the UI thread.
-                            let ctx = ctx.clone();
-                            let (sender, promise) = Promise::new();
-                            let request = ehttp::Request{
-                                method: method,
-                                url: url,
-                                body: body,
-                                headers: headers
-                            };
-                            ehttp::fetch(request, move |response| {
-                                if let Ok(r) = response {
-                                    let headers_v: String = r.headers.iter().map(|(key, value)| format!("{}: {}\r\n", key, value)).collect();
-                                    sender.send(
-                                        Ok(
-                                            format!("HTTP/1.1 {} {}\r\n{}\r\n{}", r.status, r.status_text, headers_v, String::from_utf8_lossy(&r.bytes).to_string())
-                                        )
-                                    );
-                                    ctx.request_repaint();
-                                }
+                        ui.separator();
+                        if ui.button("✉ Send").clicked() {
+                            /* TODO: Parse request */
+                            let method = inspected.modified_request.split(" ").take(1).collect::<String>();
+                            let uri = inspected.modified_request.split(" ").skip(1).take(1).collect::<String>();
+                            let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
+                            let body = inspected.modified_request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
+                            let mut headers = BTreeMap::new();
+    
+                            for header in inspected.modified_request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
+                                let name = header.split(": ").take(1).collect::<String>();
+                                let value = header.split(": ").skip(1).collect::<String>();
+                                headers.insert(name, value);
+                            }
+    
+                            //println!("method: {}\nuri: {}\nurl: {}\nbody: {:?}\nheaders: {:?}", method, uri, url, body, headers);
+                            /* Actually send the request */
+                            let ctx = ui.ctx();
+                            let promise = inspected.response_promise.get_or_insert_with(|| {
+                                // Begin download.
+                                // We download the image using `ehttp`, a library that works both in WASM and on native.
+                                // We use the `poll-promise` library to communicate with the UI thread.
+                                let ctx = ctx.clone();
+                                let (sender, promise) = Promise::new();
+                                let request = ehttp::Request{
+                                    method: method,
+                                    url: url,
+                                    body: body,
+                                    headers: headers
+                                };
+                                ehttp::fetch(request, move |response| {
+                                    if let Ok(r) = response {
+                                        let headers_v: String = r.headers.iter().map(|(key, value)| format!("{}: {}\r\n", key, value)).collect();
+                                        sender.send(
+                                            Ok(
+                                                format!("HTTP/1.1 {} {}\r\n{}\r\n{}", r.status, r.status_text, headers_v, String::from_utf8_lossy(&r.bytes).to_string())
+                                            )
+                                        );
+                                        ctx.request_repaint();
+                                    }
+                                });
+                                promise
                             });
-                            promise
-                        });
-
-                        if let Some(Ok(s)) = promise.ready() {
+    
+                            if let Some(Ok(s)) = promise.ready() {
+                                inspected.new_response = s.to_string();
+                                inspected.response_promise = None;
+                            }
+                        }
+                        ui.separator();
+    
+                    });
+                    if let Some(p) = &inspected.response_promise {
+                        if let Some(Ok(s)) = p.ready() {
                             inspected.new_response = s.to_string();
                             inspected.response_promise = None;
+                            ui.ctx().request_repaint();
                         }
                     }
                     ui.separator();
-
-                });
-                if let Some(p) = &inspected.response_promise {
-                    if let Some(Ok(s)) = p.ready() {
-                        inspected.new_response = s.to_string();
-                        inspected.response_promise = None;
-                        ui.ctx().request_repaint();
-                    }
+                    code_edit_ui(ui, &mut inspected.modified_request);
+                    ui.separator();
+                    code_view_ui(ui, &mut inspected.new_response);
+                },
+                ActiveInspectorMenu::Default => {
+                    code_view_ui(ui, &inspected.request);
+                    ui.separator();
+                    code_view_ui(ui, &inspected.response);
+                },
+                ActiveInspectorMenu::Intruder => {
+                    egui::menu::bar(ui, |ui| {
+                        if ui.button("⚠ Reset").clicked() {
+                            /* TODO: reset intruder to original request */
+                        }
+                        if ui.button("✉ Send").clicked() {
+                            /* TODO: Actually start bruteforcing */
+                        }
+                    });
+                    ui.separator();
+                    ui.label("Not yet implemented!");
                 }
-                ui.separator();
-                code_edit_ui(ui, &mut inspected.modified_request);
-                ui.separator();
-                code_view_ui(ui, &mut inspected.new_response);
-            },
-            ActiveInspectorMenu::Default => {
-                code_view_ui(ui, &inspected.request);
-                ui.separator();
-                code_view_ui(ui, &inspected.response);
-            },
-            ActiveInspectorMenu::Intruder => {
-                egui::menu::bar(ui, |ui| {
-                    if ui.button("⚠ Reset").clicked() {
-                        /* TODO: reset intruder to original request */
-                    }
-                    if ui.button("✉ Send").clicked() {
-                        /* TODO: Actually start bruteforcing */
-                    }
-                });
-                ui.separator();
-                ui.label("Not yet implemented!");
+                
             }
-            
-        }
-    });
+        });
+    }
+    
 
 }
 
@@ -309,6 +322,7 @@ impl History {
                                     target: histline.host.to_string(),
                                     active_window: ActiveInspectorMenu::Default,
                                     is_active: true,
+                                    is_minimized: false,
                                 });
                             }
                         });
@@ -320,10 +334,20 @@ impl History {
     fn show_table(&mut self, ui: &mut egui::Ui, path: &String) {
         ui.vertical(|ui| {
             egui::menu::bar(ui, |ui| {
-                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                    ui.label("History");
+                ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
+                    ui.horizontal(|ui|{
+                        let bt = if self.is_minimized { "+" } else { "-" };
+                        if ui.button(bt).clicked() {
+                            self.is_minimized = !self.is_minimized;
+                            ui.ctx().request_repaint();
+                        }
+                        ui.separator();
+                        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                            ui.label("History");
+                        });
+                    });
+                    
                 });
-                ui.separator();
             });
             
             if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
@@ -331,13 +355,17 @@ impl History {
                     self.history.insert(0, row);
                 }
             }
-            StripBuilder::new(ui)
-                .size(Size::initial(1024.0).at_most(1280.0).at_least(1024.0))
-                .vertical(|mut strip| {
-                    strip.cell(|ui| {
-                        self.tbl_ui(ui);
+
+            if !self.is_minimized {
+                StripBuilder::new(ui)
+                    .size(Size::initial(1024.0).at_most(1280.0).at_least(1024.0))
+                    .vertical(|mut strip| {
+                        strip.cell(|ui| {
+                            self.tbl_ui(ui);
+                        });
                     });
-                });
+            }
+            
             
 
             ui.separator();
