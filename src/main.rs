@@ -7,11 +7,13 @@ fn main() {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 
-    let native_options = eframe::NativeOptions::default();
+    let mut native_options = eframe::NativeOptions::default();
+    native_options.initial_window_size = Some([480.0, 200.0].into());
+    native_options.decorated = true;
     eframe::run_native(
-        "eframe template",
+        "Rustyproxy",
         native_options,
-        Box::new(|cc| Box::new(eframe_template::TemplateApp::new(cc))),
+        Box::new(|cc| Box::new(rustyproxy::TemplateApp::new(cc))),
     );
 }
 
@@ -28,7 +30,7 @@ fn main() {
     eframe::start_web(
         "the_canvas_id", // hardcode it
         web_options,
-        Box::new(|cc| Box::new(eframe_template::TemplateApp::new(cc))),
+        Box::new(|cc| Box::new(rustyproxy::TemplateApp::new(cc))),
     )
     .expect("failed to start eframe");
 }
