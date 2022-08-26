@@ -64,10 +64,10 @@ impl eframe::App for TemplateApp {
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
-            
+            ctx.request_repaint_after(std::time::Duration::from_secs_f32(1.0));
             egui::menu::bar(ui, |ui| {
                 egui::widgets::global_dark_light_mode_switch(ui);
-
+                ui.separator();
                 if ui.button("🗀 Open").clicked() {
                     if let Some(path) = rfd::FileDialog::new().pick_folder() {
                         let path = path.display().to_string();
@@ -78,13 +78,14 @@ impl eframe::App for TemplateApp {
                         
                     }
                 }
-
+                ui.separator();
 
                 if let Some(picked_path) = &self.picked_path {
                     ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                         ui.horizontal(|ui| {
                             ui.monospace(picked_path);
                             ui.label("🗀 Project Path: ");
+                            ui.separator();
                         });
                     });
                     
@@ -97,6 +98,13 @@ impl eframe::App for TemplateApp {
             ui.horizontal(|ui| {
                 ui.label("This program is yet in alpha. Feel free to contribute on");
                 ui.hyperlink_to("Github", "https://github.com/vaelio/rustyproxy-egui");
+                if let Some(_picked_path) = &self.picked_path {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
+                        if let Some(p) = self.components.get_component_by_name("Proxy") {
+                            p.ui(ui, &self.picked_path);
+                        }
+                    });
+                }
             });
             
         });

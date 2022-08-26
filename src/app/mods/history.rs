@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use crate::app::backend::dbutils;
 use poll_promise::Promise;
 use std::ops::Range;
+use super::components::W;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -60,7 +61,7 @@ struct Inspector {
     is_minimized: bool,
 }
 
-
+impl W for History {}
 
 impl super::Component for History {
     fn name(&self) -> &'static str {

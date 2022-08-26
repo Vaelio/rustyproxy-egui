@@ -1,4 +1,5 @@
 pub mod history;
+pub mod proxy;
 pub mod components;
 
 pub trait Component {
