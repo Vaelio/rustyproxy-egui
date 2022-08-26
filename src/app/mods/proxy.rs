@@ -7,7 +7,6 @@ use super::components::W;
 pub struct Proxy {
     is_open: bool,
     is_minimized: bool,
-    is_spawned: bool,
     #[serde(skip)]
     handler: Option<ProxyHandler>,
 }
@@ -26,14 +25,20 @@ impl super::Component for Proxy {
 
 impl super::View for Proxy {
     fn ui(&mut self, ui: &mut egui::Ui, path: &Option<String>) {
-        let is_spawned = format!("Running: {}", self.is_spawned);
-        ui.label(is_spawned);
+        let is_spawned = {
+            if let Some(h) = &mut self.handler {
+                h.is_alive()
+            } else {
+                false
+            }
+        };
+        ui.label(format!("Running: {}", is_spawned));
         ui.separator();
         if ui.button("stop").clicked(){
             self.stop();
         }
         ui.separator();
-        if ui.button("start").clicked() && !self.is_spawned {
+        if ui.button("start").clicked() && !is_spawned {
             self.start(path);
         }
         ui.separator();
@@ -45,12 +50,11 @@ impl Proxy {
     fn start (&mut self, path: &Option<String>) {
         let path = if path.is_some() { path.clone().unwrap().to_string() } else { "/tmp/RPTProject".to_string() };
         self.handler = Some(ProxyHandler::start("sh", ["-c", &format!("./srv/rustyproxy-srv -d {} 2> {}/logs", &path, &path)]));
-        self.is_spawned = true;  
     }
 
     fn stop (&mut self) {
         if let Some(h) = &mut self.handler {
-            self.is_spawned = if h.kill() { false } else { true };
+            h.kill();
             self.handler = None;
         }
     }

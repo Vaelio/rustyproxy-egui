@@ -22,6 +22,11 @@ impl ProxyHandler {
         }
     }
 
+    pub fn is_alive(&mut self) -> bool {
+        self.handle.try_wait().ok().is_none()
+    }
+
+
     pub fn kill(&mut self) -> bool {
         self.handle.kill().is_ok()
     }

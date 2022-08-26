@@ -11,6 +11,7 @@ pub struct TemplateApp {
     menu: String,
 
     // picked_path
+    #[serde(skip)]
     picked_path: Option<String>,
 
     // Components
@@ -98,13 +99,11 @@ impl eframe::App for TemplateApp {
             ui.horizontal(|ui| {
                 ui.label("This program is yet in alpha. Feel free to contribute on");
                 ui.hyperlink_to("Github", "https://github.com/vaelio/rustyproxy-egui");
-                if let Some(_picked_path) = &self.picked_path {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
-                        if let Some(p) = self.components.get_component_by_name("Proxy") {
-                            p.ui(ui, &self.picked_path);
-                        }
-                    });
-                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
+                    if let Some(p) = self.components.get_component_by_name("Proxy") {
+                        p.ui(ui, &self.picked_path);
+                    }
+                });
             });
             
         });
