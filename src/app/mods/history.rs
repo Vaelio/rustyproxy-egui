@@ -392,7 +392,7 @@ impl History {
                 ui.label(lbl);
                 ui.label("⬌ Items per page: ");
                 ui.add(
-                    egui::Slider::new(&mut self.items_per_page, (10 as usize)..=(1000 as usize))
+                    egui::Slider::new(&mut self.items_per_page, (10 as usize)..=(self.history.len()))
                 );
                 ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                     ui.horizontal(|ui| {
