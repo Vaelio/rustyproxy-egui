@@ -124,7 +124,6 @@ impl eframe::App for TemplateApp {
                 }
             }
             
-
             egui::warn_if_debug_build(ui);
         });
     }

@@ -23,7 +23,11 @@ impl ProxyHandler {
     }
 
     pub fn is_alive(&mut self) -> bool {
-        self.handle.try_wait().ok().is_none()
+        match self.handle.try_wait() {
+            Ok(Some(_)) => false,
+            Ok(None) => true,
+            Err(_) => true,
+        }
     }
 
 
