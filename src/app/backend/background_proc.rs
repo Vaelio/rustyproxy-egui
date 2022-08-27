@@ -32,6 +32,10 @@ impl ProxyHandler {
 
 
     pub fn kill(&mut self) -> bool {
-        self.handle.kill().is_ok()
+        let r = self.handle.kill().is_ok();
+        let w = self.handle.wait().is_ok();
+
+        r && w
+
     }
 }

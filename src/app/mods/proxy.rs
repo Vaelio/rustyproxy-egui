@@ -51,7 +51,7 @@ impl super::View for Proxy {
 impl Proxy {
     fn start (&mut self, path: &Option<String>) {
         let path = if path.is_some() { path.clone().unwrap().to_string() } else { "/tmp/RPTProject".to_string() };
-        self.handler = Some(ProxyHandler::start("sh", ["-c", &format!("./srv/rustyproxy-srv -d {} 2> {}/logs", &path, &path)]));
+        self.handler = Some(ProxyHandler::start("./srv/rustyproxy-srv", ["-d", &path]));
     }
 
     fn stop (&mut self) {
