@@ -32,7 +32,9 @@ impl super::View for Proxy {
                 false
             }
         };
-        ui.label(format!("Running: {}", is_spawned));
+        if is_spawned {
+            ui.spinner();
+        }
         ui.separator();
         if ui.button("stop").clicked(){
             self.stop();
