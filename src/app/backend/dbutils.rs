@@ -50,7 +50,7 @@ pub fn get_new_from_last_id(last_id: usize, path: &String) -> Option<Vec<HistLin
                     ssl: row.get(7).unwrap(),
                     response: row.get(8).unwrap(),
                     response_time: row.get(9).unwrap(),
-                    host: row.get::<usize, String>(6).unwrap().split("\r\nHost: ").skip(1).take(1).collect::<String>().split("\r\n").take(1).collect::<String>(),
+                    host: row.get::<usize, String>(6).unwrap().split("ost: ").skip(1).take(1).collect::<String>().split("\r\n").take(1).collect::<String>(),
                 }
             )
         }).unwrap();

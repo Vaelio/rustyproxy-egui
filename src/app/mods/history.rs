@@ -1,9 +1,10 @@
 use egui_extras::{Size, TableBuilder};
-use std::collections::BTreeMap;
+//use std::collections::BTreeMap;
 use crate::app::backend::dbutils;
 use poll_promise::Promise;
 use std::ops::Range;
 use super::components::W;
+use reqwest::header::HeaderMap;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -194,11 +195,11 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             let uri = inspected.modified_request.split(" ").skip(1).take(1).collect::<String>();
                             let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
                             let body = inspected.modified_request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
-                            let mut headers = BTreeMap::new();
-    
+                            let mut headers = HeaderMap::new();
+                            
                             for header in inspected.modified_request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
-                                let name = header.split(": ").take(1).collect::<String>();
-                                let value = header.split(": ").skip(1).collect::<String>();
+                                let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
+                                let value = reqwest::header::HeaderValue::from_bytes(header.split(": ").skip(1).collect::<String>().as_bytes()).unwrap();
                                 headers.insert(name, value);
                             }
     
@@ -211,23 +212,28 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 // We use the `poll-promise` library to communicate with the UI thread.
                                 let ctx = ctx.clone();
                                 let (sender, promise) = Promise::new();
-                                let request = ehttp::Request{
-                                    method: method,
-                                    url: url,
-                                    body: body,
-                                    headers: headers
-                                };
-                                ehttp::fetch(request, move |response| {
-                                    if let Ok(r) = response {
-                                        let headers_v: String = r.headers.iter().map(|(key, value)| format!("{}: {}\r\n", key, value)).collect();
+                                
+                                let cli = reqwest::blocking::Client::builder()
+                                    .danger_accept_invalid_certs(true)
+                                    .default_headers(headers)
+                                    .build()
+                                    .unwrap();
+                                
+                                cli.request(reqwest::Method::from_bytes(&method.as_bytes()).unwrap(), url)
+                                    .body(body)
+                                    .send()
+                                    .and_then(move |r| {
+                                        let headers: String = r.headers().iter().map(|(key, value)| format!("{}: {}\r\n", key, value.to_str().unwrap())).collect();
                                         sender.send(
                                             Ok(
-                                                format!("HTTP/1.1 {} {}\r\n{}\r\n{}", r.status, r.status_text, headers_v, String::from_utf8_lossy(&r.bytes).to_string())
+                                                format!("{:?} {} {}\r\n{}\r\n{}", r.version(), r.status().as_str(), r.status().canonical_reason().unwrap(), headers, r.text().unwrap())
                                             )
+                                
                                         );
                                         ctx.request_repaint();
-                                    }
-                                });
+                                        Ok(())
+                                    }).unwrap();
+
                                 promise
                             });
     
