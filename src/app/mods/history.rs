@@ -398,7 +398,6 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
 }
 
 fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
-    /* TODO: Table of results */
     egui::ScrollArea::both()
         .max_width(1000.0)
         .max_height(400.0)
