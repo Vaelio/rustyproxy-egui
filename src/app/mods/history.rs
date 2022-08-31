@@ -461,7 +461,7 @@ impl History {
                 ui.add(egui::Slider::new(
                     &mut self.items_per_page,
                     (10 as usize)..=(self.history.len()),
-                ));
+                ).logarithmic(true));
                 ui.label("Filter by host: ");
                 let response = ui.add(egui::TextEdit::singleline(&mut self.host_filter_input).id(egui::Id::new("host_filter")));
                 if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
