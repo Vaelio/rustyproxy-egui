@@ -333,11 +333,11 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         if ui.button("✉ Send").clicked() {
                             /* TODO: Actually start bruteforcing */
                             for payload in &inspected.bf_payload {
-                                let request = inspected.bf_request.replace("\\r\\n", "\r");
+                                let request = inspected.bf_request.replace("\\r\\n", "\r").replace("$[PAYLOAD]$", payload);
                                 let method = request.split(" ").take(1).collect::<String>();
                                 let uri = request.split(" ").skip(1).take(1).collect::<String>();
                                 let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
-                                let body = request.replace("$[PAYLOAD]$", payload).split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
+                                let body = request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
                                 let mut headers = HeaderMap::new();
                                 for header in request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
                                     let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
