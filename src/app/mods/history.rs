@@ -92,6 +92,7 @@ impl super::Component for History {
                 .scroll2([true, false])
                 .resizable(true)
                 .title_bar(false)
+                .id(egui::Id::new("History"))
                 .default_width(1024.0)
                 .anchor(egui::Align2::LEFT_TOP, [0.0, 0.0])
                 .show(ctx, |ui| {
@@ -102,9 +103,10 @@ impl super::Component for History {
                 if inspector.is_active {
                     egui::Window::new(format!("Viewing #{}", inspector.id))
                         .title_bar(false)
+                        .id(egui::Id::new(format!("{}", inspector.id)))
                         .collapsible(true)
                         .scroll2([true, true])
-                        .default_width(1024.0)
+                        .default_width(800.0)
                         .show(ctx, |ui| {
                             inspect(ui, &mut inspector);
                         });
@@ -459,7 +461,7 @@ impl History {
                     (10 as usize)..=(self.history.len()),
                 ));
                 ui.label("Filter by host: ");
-                let response = ui.add(egui::TextEdit::singleline(&mut self.host_filter_input));
+                let response = ui.add(egui::TextEdit::singleline(&mut self.host_filter_input).id(egui::Id::new("host_filter")));
                 if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
                     if self.host_filter_input != "" {
                         self.host_filter = Some(self.host_filter_input.to_owned());
