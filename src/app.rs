@@ -1,7 +1,7 @@
-mod mods;
 mod backend;
-use crate::app::mods::components::Components;
+mod mods;
 use crate::app::backend::dbutils;
+use crate::app::mods::components::Components;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -15,7 +15,6 @@ pub struct TemplateApp {
 
     // Components
     components: Components,
-
 }
 
 impl Default for TemplateApp {
@@ -54,7 +53,6 @@ impl eframe::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
         // Examples of how to create different panels and windows.
         // Pick whichever suits you.
         // Tip: a good default choice is to just keep the `CentralPanel`.
@@ -74,7 +72,6 @@ impl eframe::App for TemplateApp {
                             self.picked_path = Some(path);
                             self.components.open("History", true);
                         }
-                        
                     }
                 }
                 ui.separator();
@@ -87,11 +84,8 @@ impl eframe::App for TemplateApp {
                             ui.separator();
                         });
                     });
-                    
                 }
-                
             });
-            
         });
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -103,7 +97,6 @@ impl eframe::App for TemplateApp {
                     }
                 });
             });
-            
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
@@ -117,11 +110,10 @@ impl eframe::App for TemplateApp {
                             self.picked_path = Some(path);
                             self.components.open("History", true);
                         }
-                        
                     }
                 }
             }
-            
+
             /* check wether or not there's an inspector open or not */
             egui::warn_if_debug_build(ui);
         });

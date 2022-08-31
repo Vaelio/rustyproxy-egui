@@ -1,14 +1,13 @@
 use egui_extras::{Size, TableBuilder};
 //use std::collections::BTreeMap;
+use super::components::W;
 use crate::app::backend::dbutils;
 use poll_promise::Promise;
-use std::ops::Range;
-use super::components::W;
 use reqwest::header::HeaderMap;
-use std::path::PathBuf;
 use std::fs::File;
 use std::io::Write;
-
+use std::ops::Range;
+use std::path::PathBuf;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -47,7 +46,7 @@ impl Default for History {
 enum ActiveInspectorMenu {
     Default,
     Repeater,
-    Intruder
+    Intruder,
 }
 
 impl Default for ActiveInspectorMenu {
@@ -94,7 +93,6 @@ impl super::Component for History {
                 });
 
             for mut inspector in &mut self.inspectors {
-
                 if inspector.is_active {
                     egui::Window::new(format!("Viewing #{}", inspector.id))
                         .title_bar(false)
@@ -105,21 +103,16 @@ impl super::Component for History {
                             inspect(ui, &mut inspector);
                         });
                 }
-                
             }
         }
     }
 }
 
 impl super::View for History {
-    fn ui(&mut self, _ui: &mut egui::Ui, _path: &Option<String>) {
-        
-    }
+    fn ui(&mut self, _ui: &mut egui::Ui, _path: &Option<String>) {}
 }
 
 fn code_view_ui(ui: &mut egui::Ui, mut code: &str) {
-
-    
     egui::TextEdit::multiline(&mut code)
         .font(egui::TextStyle::Monospace) // for cursor height
         .code_editor()
@@ -128,13 +121,9 @@ fn code_view_ui(ui: &mut egui::Ui, mut code: &str) {
         .interactive(false)
         .lock_focus(false)
         .show(ui);
-
 }
 
-
 fn code_edit_ui(ui: &mut egui::Ui, code: &mut String) {
-
-    
     egui::TextEdit::multiline(code)
         .font(egui::TextStyle::Monospace) // for cursor height
         .code_editor()
@@ -143,9 +132,7 @@ fn code_edit_ui(ui: &mut egui::Ui, code: &mut String) {
         .interactive(true)
         .lock_focus(true)
         .show(ui);
-
 }
-
 
 fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
     egui::menu::bar(ui, |ui| {
@@ -208,14 +195,12 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
                             let body = inspected.modified_request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
                             let mut headers = HeaderMap::new();
-                            
                             for header in inspected.modified_request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
                                 let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
                                 let value = reqwest::header::HeaderValue::from_bytes(header.split(": ").skip(1).collect::<String>().as_bytes()).unwrap();
                                 headers.insert(name, value);
                             }
-    
-                            //println!("method: {}\nuri: {}\nurl: {}\nbody: {:?}\nheaders: {:?}", method, uri, url, body, headers);
+
                             /* Actually send the request */
                             let ctx = ui.ctx();
                             let promise = inspected.response_promise.get_or_insert_with(|| {
@@ -224,13 +209,13 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 // We use the `poll-promise` library to communicate with the UI thread.
                                 let ctx = ctx.clone();
                                 let (sender, promise) = Promise::new();
-                                
+
                                 let cli = reqwest::blocking::Client::builder()
                                     .danger_accept_invalid_certs(true)
                                     .default_headers(headers)
                                     .build()
                                     .unwrap();
-                                
+
                                 cli.request(reqwest::Method::from_bytes(&method.as_bytes()).unwrap(), url)
                                     .body(body)
                                     .send()
@@ -240,7 +225,6 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                             Ok(
                                                 format!("{:?} {} {}\r\n{}\r\n{}", r.version(), r.status().as_str(), r.status().canonical_reason().unwrap(), headers, r.text().unwrap())
                                             )
-                                
                                         );
                                         ctx.request_repaint();
                                         Ok(())
@@ -248,14 +232,14 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
 
                                 promise
                             });
-    
+
                             if let Some(Ok(s)) = promise.ready() {
                                 inspected.new_response = s.to_string();
                                 inspected.response_promise = None;
                             }
                         }
                         ui.separator();
-    
+
                     });
                     if let Some(p) = &inspected.response_promise {
                         if let Some(Ok(s)) = p.ready() {
@@ -302,16 +286,12 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                     ui.separator();
                     ui.label("Not yet implemented!");
                 }
-                
             }
         });
     }
-    
-
 }
 
 impl History {
-    
     fn tbl_ui(&mut self, ui: &mut egui::Ui) {
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
         TableBuilder::new(ui)
@@ -329,10 +309,14 @@ impl History {
             .stick_to_bottom(false)
             .body(|mut body| {
                 let mut range = Range {
-                    start: self.current_page*self.items_per_page,
-                    end: (self.current_page+1)*self.items_per_page,
+                    start: self.current_page * self.items_per_page,
+                    end: (self.current_page + 1) * self.items_per_page,
                 };
-                range.end = if range.end > self.history.len() { self.history.len() } else { range.end };
+                range.end = if range.end > self.history.len() {
+                    self.history.len()
+                } else {
+                    range.end
+                };
                 for histline in &self.history[range] {
                     if histline.id > self.last_id {
                         self.last_id = histline.id;
@@ -358,7 +342,7 @@ impl History {
                         });
                         row.col(|ui| {
                             if ui.button("🔍").clicked() {
-                                self.inspectors.push(Inspector{
+                                self.inspectors.push(Inspector {
                                     id: histline.id,
                                     request: histline.raw.to_string(),
                                     response: histline.response.to_string(),
@@ -378,12 +362,11 @@ impl History {
             });
     }
 
-
     fn show_table(&mut self, ui: &mut egui::Ui, path: &String) {
         ui.vertical(|ui| {
             egui::menu::bar(ui, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
-                    ui.horizontal(|ui|{
+                    ui.horizontal(|ui| {
                         let bt = if self.is_minimized { "+" } else { "-" };
                         if ui.button(bt).clicked() {
                             self.is_minimized = !self.is_minimized;
@@ -396,12 +379,10 @@ impl History {
                         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                             ui.label("History");
                         });
-                        
                     });
-                    
                 });
             });
-            
+
             if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
                 for row in rows {
                     self.history.insert(0, row);
@@ -414,24 +395,24 @@ impl History {
                     .max_height(400.0)
                     .show(ui, |ui| {
                         self.tbl_ui(ui);
-                });
-                
+                    });
             }
-            
-            
 
             ui.separator();
             egui::menu::bar(ui, |ui| {
                 let lbl = format!("Current page: {}", self.current_page);
                 ui.label(lbl);
                 ui.label("⬌ Items per page: ");
-                ui.add(
-                    egui::Slider::new(&mut self.items_per_page, (10 as usize)..=(self.history.len()))
-                );
+                ui.add(egui::Slider::new(
+                    &mut self.items_per_page,
+                    (10 as usize)..=(self.history.len()),
+                ));
                 ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                     ui.horizontal(|ui| {
                         if ui.button(">").clicked() {
-                            if self.history.len() - (self.current_page*self.items_per_page) > self.items_per_page {
+                            if self.history.len() - (self.current_page * self.items_per_page)
+                                > self.items_per_page
+                            {
                                 self.current_page += 1;
                             }
                         }
@@ -441,16 +422,13 @@ impl History {
                             }
                         };
                     });
-                    
                 });
             });
         });
     }
 }
 
-
-fn save_content_to_file (path: PathBuf, content: &String ) -> bool {
-
+fn save_content_to_file(path: PathBuf, content: &String) -> bool {
     if let Ok(mut fd) = File::create(path.display().to_string()) {
         if let Ok(_) = write!(fd, "{}", content) {
             return true;
@@ -459,6 +437,4 @@ fn save_content_to_file (path: PathBuf, content: &String ) -> bool {
     return false;
 }
 
-fn copy_as_curl (content: &String ) {
-
-}
+fn copy_as_curl(content: &String) {}

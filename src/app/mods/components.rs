@@ -11,7 +11,7 @@ pub trait W: View + Component {}
 pub struct Components {
     #[serde(skip)]
     components: Vec<Box<dyn W>>,
-    open: BTreeSet<String>
+    open: BTreeSet<String>,
 }
 
 impl Default for Components {
@@ -26,7 +26,7 @@ impl Default for Components {
 impl Components {
     pub fn from_components(components: Vec<Box<dyn W>>) -> Self {
         let open = BTreeSet::new();
-        
+
         Self { components, open }
     }
 

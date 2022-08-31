@@ -1,8 +1,7 @@
-use crate::app::backend::background_proc::ProxyHandler;
 use super::components::W;
+use crate::app::backend::background_proc::ProxyHandler;
 
-#[derive(serde::Deserialize, serde::Serialize)]
-#[derive(Default)]
+#[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct Proxy {
     is_open: bool,
     is_minimized: bool,
@@ -17,9 +16,7 @@ impl super::Component for Proxy {
         "Proxy"
     }
 
-    fn show(&mut self, _ctx: &egui::Context, _open: &mut bool, _path: &Option<String>) {
-        
-    }
+    fn show(&mut self, _ctx: &egui::Context, _open: &mut bool, _path: &Option<String>) {}
 }
 
 impl super::View for Proxy {
@@ -37,7 +34,7 @@ impl super::View for Proxy {
             ui.label("Nope");
         }
         ui.separator();
-        if ui.button("stop").clicked(){
+        if ui.button("stop").clicked() {
             self.stop();
         }
         ui.separator();
@@ -45,17 +42,20 @@ impl super::View for Proxy {
             self.start(path);
         }
         ui.separator();
-        
     }
 }
 
 impl Proxy {
-    fn start (&mut self, path: &Option<String>) {
-        let path = if path.is_some() { path.clone().unwrap().to_string() } else { "/tmp/RPTProject".to_string() };
+    fn start(&mut self, path: &Option<String>) {
+        let path = if path.is_some() {
+            path.clone().unwrap().to_string()
+        } else {
+            "/tmp/RPTProject".to_string()
+        };
         self.handler = Some(ProxyHandler::start("./srv/rustyproxy-srv", ["-d", &path]));
     }
 
-    fn stop (&mut self) {
+    fn stop(&mut self) {
         if let Some(h) = &mut self.handler {
             h.kill();
             self.handler = None;

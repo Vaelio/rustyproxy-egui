@@ -1,5 +1,5 @@
-use std::process::{Command, Child};
 use std::ffi::OsStr;
+use std::process::{Child, Command};
 
 pub struct ProxyHandler {
     handle: Child,
@@ -7,19 +7,13 @@ pub struct ProxyHandler {
 
 impl ProxyHandler {
     pub fn start<T, S>(command: &str, args: T) -> Self
-    where 
+    where
         T: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let child = Command::new(command)
-            .args(args)
-            .spawn()
-            .unwrap();
+        let child = Command::new(command).args(args).spawn().unwrap();
 
-
-        ProxyHandler {
-            handle: child,
-        }
+        ProxyHandler { handle: child }
     }
 
     pub fn is_alive(&mut self) -> bool {
@@ -30,12 +24,10 @@ impl ProxyHandler {
         }
     }
 
-
     pub fn kill(&mut self) -> bool {
         let r = self.handle.kill().is_ok();
         let w = self.handle.wait().is_ok();
 
         r && w
-
     }
 }
