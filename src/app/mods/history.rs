@@ -297,6 +297,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         if ui.button("☰ Copy as Curl").clicked() {
                             copy_as_curl(&inspected.request, inspected.ssl, &inspected.target);
                         }
+                        ui.separator();
                     });
                     ui.separator();
                     code_view_ui(ui, &inspected.request);
