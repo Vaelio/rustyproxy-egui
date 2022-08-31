@@ -200,6 +200,10 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             }
                         }
                         ui.separator();
+                        if ui.button("☰ Copy as Curl").clicked() {
+                            copy_as_curl(&inspected.modified_request, inspected.ssl, &inspected.target);
+                        }
+                        ui.separator();
                         if ui.button("✉ Send").clicked() {
                             /* TODO: Parse request */
                             let method = inspected.modified_request.split(" ").take(1).collect::<String>();
@@ -291,7 +295,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         }
                         ui.separator();
                         if ui.button("☰ Copy as Curl").clicked() {
-                            copy_as_curl(&inspected.modified_request, inspected.ssl, &inspected.target);
+                            copy_as_curl(&inspected.request, inspected.ssl, &inspected.target);
                         }
                     });
                     ui.separator();
@@ -350,13 +354,16 @@ impl History {
                 } else {
                     range.end
                 };
-                for histline in &self.history[range] {
+                for mut histline in &mut self.history[range] {
                     if histline.id > self.last_id {
                         self.last_id = histline.id;
                     }
                     let mut f = "";
                     if let Some(filter) = &self.host_filter {
                         f = &filter;
+                    }
+                    if histline.uri.starts_with("http://") {
+                        histline.uri = format!("/{}", histline.uri.split("/").skip(3).collect::<String>());
                     }
                     if self.host_filter.is_none() || histline.host.contains(f) {
                         body.row(text_height, |mut row| {
@@ -497,7 +504,7 @@ fn copy_as_curl(content: &String, ssl: bool, target: &String) {
     let url = format!("{}://{}{}", if ssl { "https" } else { "http" }, target, uri);
     let body = content.split("\r\n\r\n").skip(1).take(1).collect::<String>();
 
-    let mut scurl = format!("curl {} -X {} --data '{}'", url, method, body);
+    let mut scurl = format!("curl '{}' -X '{}' --data '{}'", url, method, body);
     for header in content.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
         scurl.push_str(&format!(" -H '{}'", &header));
     }
