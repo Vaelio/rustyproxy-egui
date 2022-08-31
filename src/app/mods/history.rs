@@ -321,7 +321,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 ActiveInspectorMenu::Intruder => {
                     egui::menu::bar(ui, |ui| {
                         if ui.button("⚠ Reset").clicked() {
-                            inspected.bf_request = inspected.request.to_string();
+                            inspected.bf_request = inspected.request.to_string().replace("\r", "\\r\\n");
                         }
                         ui.separator();
                         if ui.button("☰ Save Modified Request").clicked() {
@@ -333,12 +333,13 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         if ui.button("✉ Send").clicked() {
                             /* TODO: Actually start bruteforcing */
                             for payload in &inspected.bf_payload {
-                                let method = inspected.bf_request.split(" ").take(1).collect::<String>();
-                                let uri = inspected.bf_request.split(" ").skip(1).take(1).collect::<String>();
+                                let request = inspected.bf_request.replace("\\r\\n", "\r");
+                                let method = request.split(" ").take(1).collect::<String>();
+                                let uri = request.split(" ").skip(1).take(1).collect::<String>();
                                 let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
-                                let body = inspected.bf_request.replace("$[PAYLOAD]$", payload).split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
+                                let body = request.replace("$[PAYLOAD]$", payload).split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
                                 let mut headers = HeaderMap::new();
-                                for header in inspected.bf_request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
+                                for header in request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
                                     let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
                                     let value = reqwest::header::HeaderValue::from_bytes(header.split(": ").skip(1).collect::<String>().as_bytes()).unwrap();
                                     headers.insert(name, value);
