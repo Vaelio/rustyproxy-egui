@@ -227,12 +227,13 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         ui.separator();
                         if ui.button("✉ Send").clicked() {
                             /* TODO: Parse request */
-                            let method = inspected.modified_request.split(" ").take(1).collect::<String>();
-                            let uri = inspected.modified_request.split(" ").skip(1).take(1).collect::<String>();
+                            let request = inspected.modified_request.replace("\\r\\n", "\r");
+                            let method = request.split(" ").take(1).collect::<String>();
+                            let uri = request.split(" ").skip(1).take(1).collect::<String>();
                             let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
-                            let body = inspected.modified_request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
+                            let body = request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
                             let mut headers = HeaderMap::new();
-                            for header in inspected.modified_request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
+                            for header in request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
                                 let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
                                 let value = reqwest::header::HeaderValue::from_bytes(header.split(": ").skip(1).collect::<String>().as_bytes()).unwrap();
                                 headers.insert(name, value);
@@ -535,7 +536,7 @@ impl History {
                                         id: histline.id,
                                         request: histline.raw.to_string(),
                                         response: histline.response.to_string(),
-                                        modified_request: histline.raw.to_string(),
+                                        modified_request: histline.raw.to_string().replace("\r", "\\r\\n"),
                                         new_response: histline.response.to_string(),
                                         response_promise: None,
                                         ssl: histline.ssl,
