@@ -211,7 +211,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 ActiveInspectorMenu::Repeater => {
                     egui::menu::bar(ui, |ui| {
                         if ui.button("⚠ Reset").clicked() {
-                            inspected.modified_request = inspected.request.to_string();
+                            inspected.modified_request = inspected.request.to_string().replace("\r", "\\r\\n");
                             inspected.new_response = inspected.response.to_string();
                         }
                         ui.separator();
@@ -442,7 +442,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                             id: idx,
                                             request: request.to_string(),
                                             response: response.to_string(),
-                                            modified_request: request.to_string(),
+                                            modified_request: request.to_string().replace("\r", "\\r\\n"),
                                             new_response: response.to_string(),
                                             response_promise: None,
                                             ssl: inspected.ssl,
@@ -453,7 +453,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                             bf_payload: vec![],
                                             bf_results: vec![],
                                             bf_promises: vec![],
-                                            bf_request: request.to_string(),
+                                            bf_request: request.to_string().replace("\r", "\\r\\n"),
                                             childs: vec![],
                                         };
                                         inspected.childs.push(ins);
@@ -548,7 +548,7 @@ impl History {
                                         bf_payload: vec![],
                                         bf_results: vec![],
                                         bf_promises: vec![],
-                                        bf_request: histline.raw.to_string(),
+                                        bf_request: histline.raw.to_string().replace("\r", "\\r\\n"),
                                         childs: vec![],
                                     });
                                 }
