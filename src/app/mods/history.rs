@@ -1,7 +1,7 @@
-use egui_extras::{Size, TableBuilder};
-use clipboard::{ClipboardContext, ClipboardProvider};
 use super::components::W;
 use crate::app::backend::dbutils;
+use clipboard::{ClipboardContext, ClipboardProvider};
+use egui_extras::{Size, TableBuilder};
 use poll_promise::Promise;
 use reqwest::header::HeaderMap;
 use std::fs::File;
@@ -110,14 +110,14 @@ impl super::Component for History {
                     for mut child in &mut inspector.childs {
                         if child.is_active {
                             egui::Window::new(format!("Viewing Bruteforcer #{}", child.id))
-                            .title_bar(false)
-                            .id(egui::Id::new(format!("{}", child.id)))
-                            .collapsible(true)
-                            .scroll2([true, true])
-                            .default_width(800.0)
-                            .show(ctx, |ui| {
-                                inspect(ui, &mut child);
-                            });
+                                .title_bar(false)
+                                .id(egui::Id::new(format!("{}", child.id)))
+                                .collapsible(true)
+                                .scroll2([true, true])
+                                .default_width(800.0)
+                                .show(ctx, |ui| {
+                                    inspect(ui, &mut child);
+                                });
                         }
                     }
                     egui::Window::new(format!("Viewing #{}", inspector.id))
@@ -435,14 +435,22 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 });
                                 row.col(|ui| {
                                     if ui.button("🔍").clicked() {
-                                        let request = inspected.bf_request.replace("$[PAYLOAD]$", payload).to_string();
-                                        let response = format!("{} {}\r\n{}\r\n{}", version, status, headers, text);
+                                        let request = inspected
+                                            .bf_request
+                                            .replace("$[PAYLOAD]$", payload)
+                                            .to_string();
+                                        let response = format!(
+                                            "{} {}\r\n{}\r\n{}",
+                                            version, status, headers, text
+                                        );
 
                                         let ins = Inspector {
                                             id: idx,
                                             request: request.to_string(),
                                             response: response.to_string(),
-                                            modified_request: request.to_string().replace("\r", "\\r\\n"),
+                                            modified_request: request
+                                                .to_string()
+                                                .replace("\r", "\\r\\n"),
                                             new_response: response.to_string(),
                                             response_promise: None,
                                             ssl: inspected.ssl,
@@ -459,13 +467,11 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                         inspected.childs.push(ins);
                                     }
                                 });
-
                             });
                         }
                     }
                 });
         });
-
 }
 
 impl History {
@@ -537,7 +543,10 @@ impl History {
                                         id: histline.id,
                                         request: histline.raw.to_string(),
                                         response: histline.response.to_string(),
-                                        modified_request: histline.raw.to_string().replace("\r", "\\r\\n"),
+                                        modified_request: histline
+                                            .raw
+                                            .to_string()
+                                            .replace("\r", "\\r\\n"),
                                         new_response: histline.response.to_string(),
                                         response_promise: None,
                                         ssl: histline.ssl,
@@ -548,7 +557,10 @@ impl History {
                                         bf_payload: vec![],
                                         bf_results: vec![],
                                         bf_promises: vec![],
-                                        bf_request: histline.raw.to_string().replace("\r", "\\r\\n"),
+                                        bf_request: histline
+                                            .raw
+                                            .to_string()
+                                            .replace("\r", "\\r\\n"),
                                         childs: vec![],
                                     });
                                 }
@@ -582,7 +594,11 @@ impl History {
 
             if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
                 for row in rows {
-                    self.last_id = if row.id > self.last_id { row.id } else  {self.last_id };
+                    self.last_id = if row.id > self.last_id {
+                        row.id
+                    } else {
+                        self.last_id
+                    };
                     self.history.insert(0, row);
                 }
             }
@@ -601,12 +617,18 @@ impl History {
                 let lbl = format!("Current page: {}", self.current_page);
                 ui.label(lbl);
                 ui.label("⬌ Items per page: ");
-                ui.add(egui::Slider::new(
-                    &mut self.items_per_page,
-                    (10 as usize)..=(self.history.len()),
-                ).logarithmic(true));
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.items_per_page,
+                        (10 as usize)..=(self.history.len()),
+                    )
+                    .logarithmic(true),
+                );
                 ui.label("Filter by host: ");
-                let response = ui.add(egui::TextEdit::singleline(&mut self.host_filter_input).id(egui::Id::new("host_filter")));
+                let response = ui.add(
+                    egui::TextEdit::singleline(&mut self.host_filter_input)
+                        .id(egui::Id::new("host_filter")),
+                );
                 if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
                     if self.host_filter_input != "" {
                         self.host_filter = Some(self.host_filter_input.to_owned());
@@ -645,17 +667,24 @@ fn save_content_to_file(path: PathBuf, content: &String) -> bool {
 }
 
 fn copy_as_curl(content: &String, ssl: bool, target: &String) {
-
     let method = content.split(" ").take(1).collect::<String>();
     let uri = content.split(" ").skip(1).take(1).collect::<String>();
     let url = format!("{}://{}{}", if ssl { "https" } else { "http" }, target, uri);
-    let body = content.split("\r\n\r\n").skip(1).take(1).collect::<String>();
+    let body = content
+        .split("\r\n\r\n")
+        .skip(1)
+        .take(1)
+        .collect::<String>();
 
     let mut scurl = format!("curl '{}' -X '{}' --data '{}'", url, method, body);
-    for header in content.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
+    for header in content
+        .split("\r\n")
+        .skip(1)
+        .map_while(|x| if x.len() > 0 { Some(x) } else { None })
+        .collect::<Vec<&str>>()
+    {
         scurl.push_str(&format!(" -H '{}'", &header));
     }
-
 
     let mut clipboard: ClipboardContext = ClipboardProvider::new().unwrap();
     clipboard.set_contents(scurl.to_string()).unwrap();
