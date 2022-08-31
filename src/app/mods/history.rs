@@ -437,7 +437,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                     if ui.button("🔍").clicked() {
                                         let request = inspected.bf_request.replace("$[PAYLOAD]$", payload).to_string();
                                         let response = format!("{} {}\r\n{}\r\n{}", version, status, headers, text);
-                                        
+
                                         let ins = Inspector {
                                             id: idx,
                                             request: request.to_string(),
@@ -459,13 +459,13 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                         inspected.childs.push(ins);
                                     }
                                 });
-                                
+
                             });
                         }
                     }
                 });
         });
-    
+
 }
 
 impl History {
