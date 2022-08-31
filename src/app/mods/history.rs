@@ -352,12 +352,13 @@ impl History {
                     start: self.current_page * self.items_per_page,
                     end: (self.current_page + 1) * self.items_per_page,
                 };
-                range.end = if range.end > self.history.len() {
+                range.end = if range.end > self.history.len() || self.host_filter.is_some() {
                     self.history.len()
                 } else {
                     range.end
                 };
-                for mut histline in &mut self.history[range] {
+
+                for histline in &mut self.history[range] {
                     if histline.id > self.last_id {
                         self.last_id = histline.id;
                     }
@@ -365,8 +366,9 @@ impl History {
                     if let Some(filter) = &self.host_filter {
                         f = &filter;
                     }
+                    let mut uri = histline.uri.to_owned();
                     if histline.uri.starts_with("http://") {
-                        histline.uri = format!("/{}", histline.uri.split("/").skip(3).collect::<String>());
+                        uri = format!("/{}", histline.uri.split("/").skip(3).collect::<String>());
                     }
                     if self.host_filter.is_none() || histline.host.contains(f) {
                         body.row(text_height, |mut row| {
@@ -377,7 +379,7 @@ impl History {
                                 ui.label(histline.method.to_owned());
                             });
                             row.col(|ui| {
-                                ui.label(histline.uri.to_owned());
+                                ui.label(uri.to_owned());
                             });
                             row.col(|ui| {
                                 ui.label(histline.host.to_owned());
