@@ -440,6 +440,7 @@ impl History {
 
             if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
                 for row in rows {
+                    self.last_id = if row.id > self.last_id { row.id } else  {self.last_id };
                     self.history.insert(0, row);
                 }
             }
