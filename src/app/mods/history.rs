@@ -27,7 +27,9 @@ pub struct History {
 
     items_per_page: usize,
 
-    host_filter: String,
+    host_filter: Option<String>,
+
+    host_filter_input: String,
 }
 
 impl Default for History {
@@ -40,7 +42,8 @@ impl Default for History {
             is_minimized: false,
             current_page: 0,
             items_per_page: 10,
-            host_filter: String::new(),
+            host_filter: None,
+            host_filter_input: String::new(),
         }
     }
 }
@@ -329,6 +332,7 @@ impl History {
             .column(Size::exact(40.0))
             .column(Size::exact(80.0))
             .column(Size::remainder().at_least(400.0).at_most(600.0))
+            .column(Size::exact(100.0))
             .column(Size::exact(60.0))
             .column(Size::exact(70.0))
             .column(Size::exact(90.0))
@@ -350,43 +354,53 @@ impl History {
                     if histline.id > self.last_id {
                         self.last_id = histline.id;
                     }
-                    body.row(text_height, |mut row| {
-                        row.col(|ui| {
-                            ui.label(histline.id.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(histline.method.to_owned());
-                        });
-                        row.col(|ui| {
-                            ui.label(histline.uri.to_owned());
-                        });
-                        row.col(|ui| {
-                            ui.label(histline.size.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(histline.status.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(histline.response_time.to_owned());
-                        });
-                        row.col(|ui| {
-                            if ui.button("🔍").clicked() {
-                                self.inspectors.push(Inspector {
-                                    id: histline.id,
-                                    request: histline.raw.to_string(),
-                                    response: histline.response.to_string(),
-                                    modified_request: histline.raw.to_string(),
-                                    new_response: histline.response.to_string(),
-                                    response_promise: None,
-                                    ssl: histline.ssl,
-                                    target: histline.host.to_string(),
-                                    active_window: ActiveInspectorMenu::Default,
-                                    is_active: true,
-                                    is_minimized: false,
-                                });
-                            }
-                        });
-                    })
+                    let mut f = "";
+                    if let Some(filter) = &self.host_filter {
+                        f = &filter;
+                    }
+                    if self.host_filter.is_none() || histline.host.contains(f) {
+                        body.row(text_height, |mut row| {
+                            row.col(|ui| {
+                                ui.label(histline.id.to_string());
+                            });
+                            row.col(|ui| {
+                                ui.label(histline.method.to_owned());
+                            });
+                            row.col(|ui| {
+                                ui.label(histline.uri.to_owned());
+                            });
+                            row.col(|ui| {
+                                ui.label(histline.host.to_owned());
+                            });
+                            row.col(|ui| {
+                                ui.label(histline.size.to_string());
+                            });
+                            row.col(|ui| {
+                                ui.label(histline.status.to_string());
+                            });
+                            row.col(|ui| {
+                                ui.label(histline.response_time.to_owned());
+                            });
+                            row.col(|ui| {
+                                if ui.button("🔍").clicked() {
+                                    self.inspectors.push(Inspector {
+                                        id: histline.id,
+                                        request: histline.raw.to_string(),
+                                        response: histline.response.to_string(),
+                                        modified_request: histline.raw.to_string(),
+                                        new_response: histline.response.to_string(),
+                                        response_promise: None,
+                                        ssl: histline.ssl,
+                                        target: histline.host.to_string(),
+                                        active_window: ActiveInspectorMenu::Default,
+                                        is_active: true,
+                                        is_minimized: false,
+                                    });
+                                }
+                            });
+                        })
+                    }
+                    
                 }
             });
     }
@@ -412,7 +426,7 @@ impl History {
                 });
             });
 
-            if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path, &self.host_filter) {
+            if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
                 for row in rows {
                     self.history.insert(0, row);
                 }
@@ -420,7 +434,7 @@ impl History {
 
             if !self.is_minimized {
                 egui::ScrollArea::both()
-                    .max_width(900.0)
+                    .max_width(1000.0)
                     .max_height(400.0)
                     .show(ui, |ui| {
                         self.tbl_ui(ui);
@@ -437,16 +451,14 @@ impl History {
                     (10 as usize)..=(self.history.len()),
                 ));
                 ui.label("Filter by host: ");
-                let response = ui.add(egui::TextEdit::singleline(&mut self.host_filter));
+                let response = ui.add(egui::TextEdit::singleline(&mut self.host_filter_input));
                 if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
-                    self.last_id = 0;
-                    if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path, &self.host_filter) {
-                        self.history = vec![];
-                        
-                        for row in rows {
-                            self.history.insert(0, row);
-                        }
+                    if self.host_filter_input != "" {
+                        self.host_filter = Some(self.host_filter_input.to_owned());
+                    } else {
+                        self.host_filter = None;
                     }
+                    
                 }
                 ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                     ui.horizontal(|ui| {
@@ -493,6 +505,4 @@ fn copy_as_curl(content: &String, ssl: bool, target: &String) {
     
     let mut clipboard: ClipboardContext = ClipboardProvider::new().unwrap();
     clipboard.set_contents(scurl.to_string()).unwrap();
-
-    println!("{}", scurl);
 }

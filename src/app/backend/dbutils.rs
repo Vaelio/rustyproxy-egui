@@ -15,6 +15,7 @@ pub fn is_valid_project_path(fpath: &String) -> bool {
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Debug)]
 pub struct HistLine {
     pub id: usize,
     pub uri: String,
@@ -29,15 +30,15 @@ pub struct HistLine {
     pub host: String,
 }
 
-pub fn get_new_from_last_id(last_id: usize, path: &String, filter: &String) -> Option<Vec<HistLine>> {
+pub fn get_new_from_last_id(last_id: usize, path: &String) -> Option<Vec<HistLine>> {
     if let Ok(conn) = try_open_conn(path) {
         let mut out = vec![];
 
         let mut stmt = conn
-            .prepare("SELECT * FROM history WHERE id > ? AND raw LIKE ? ORDER BY id Asc")
+            .prepare("SELECT * FROM history WHERE id > ? ORDER BY id Asc")
             .unwrap();
         let rows = stmt
-            .query_map([&format!("{}", last_id), &format!("%Host: {}%", filter)], |row| {
+            .query_map([last_id], |row| {
                 Ok(HistLine {
                     id: row.get(0).unwrap(),
                     uri: row.get(1).unwrap(),
