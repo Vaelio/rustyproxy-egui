@@ -1,5 +1,5 @@
 use egui_extras::{Size, TableBuilder};
-//use std::collections::BTreeMap;
+use clipboard::{ClipboardContext, ClipboardProvider};
 use super::components::W;
 use crate::app::backend::dbutils;
 use poll_promise::Promise;
@@ -188,6 +188,12 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             inspected.new_response = inspected.response.to_string();
                         }
                         ui.separator();
+                        if ui.button("☰ Save Modified Request").clicked() {
+                            if let Some(path) = rfd::FileDialog::new().save_file() {
+                                save_content_to_file(path, &inspected.modified_request);
+                            }
+                        }
+                        ui.separator();
                         if ui.button("✉ Send").clicked() {
                             /* TODO: Parse request */
                             let method = inspected.modified_request.split(" ").take(1).collect::<String>();
@@ -255,19 +261,32 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 },
                 ActiveInspectorMenu::Default => {
                     egui::menu::bar(ui, |ui| {
-                        if ui.button("☰ Save request").clicked() {
+                        if ui.button("☰ Save Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
                                 save_content_to_file(path, &inspected.request);
                             }
                         }
                         ui.separator();
-                        if ui.button("☰ Save complete").clicked() {
+                        if ui.button("☰ Save All").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(path, &format!("--- ID ---\n{}\n--- Target ---\n{}\n--- SSL ---\n{}\n--- Orignal Request ---\n{}\n--- Orignal Response ---\n{}\n--- Modified Request ---\n{}\n--- Modified Request Response ---\n{}\n\n--- END ---", &inspected.id, &inspected.target, &inspected.ssl, &inspected.request, &inspected.response, &inspected.modified_request, &inspected.new_response));
+                                save_content_to_file(
+                                    path,
+                                    &format!(
+                                        "--- ID ---\n{}\n--- Target ---\n{}\n--- SSL ---\n{}\n--- Orignal Request ---\n{}\n--- Orignal Response ---\n{}\n--- Modified Request ---\n{}\n--- Modified Request Response ---\n{}\n\n--- END ---", 
+                                        &inspected.id,
+                                        &inspected.target,
+                                        &inspected.ssl,
+                                        &inspected.request,
+                                        &inspected.response,
+                                        &inspected.modified_request,
+                                        &inspected.new_response)
+                                );
                             }
                         }
                         ui.separator();
-                        if ui.button("☰ Copy as Curl").clicked() {}
+                        if ui.button("☰ Copy as Curl").clicked() {
+                            copy_as_curl(&inspected.modified_request, inspected.ssl, &inspected.target);
+                        }
                     });
                     ui.separator();
                     code_view_ui(ui, &inspected.request);
@@ -279,6 +298,13 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         if ui.button("⚠ Reset").clicked() {
                             /* TODO: reset intruder to original request */
                         }
+                        ui.separator();
+                        if ui.button("☰ Save Modified Request").clicked() {
+                            if let Some(path) = rfd::FileDialog::new().save_file() {
+                                save_content_to_file(path, &inspected.modified_request);
+                            }
+                        }
+                        ui.separator();
                         if ui.button("✉ Send").clicked() {
                             /* TODO: Actually start bruteforcing */
                         }
@@ -437,4 +463,21 @@ fn save_content_to_file(path: PathBuf, content: &String) -> bool {
     return false;
 }
 
-fn copy_as_curl(content: &String) {}
+fn copy_as_curl(content: &String, ssl: bool, target: &String) {
+
+    let method = content.split(" ").take(1).collect::<String>();
+    let uri = content.split(" ").skip(1).take(1).collect::<String>();
+    let url = format!("{}://{}{}", if ssl { "https" } else { "http" }, target, uri);
+    let body = content.split("\r\n\r\n").skip(1).take(1).collect::<String>();
+
+    let mut scurl = format!("curl {} -X {} --data '{}'", url, method, body);
+    for header in content.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
+        scurl.push_str(&format!(" -H '{}'", &header));
+    }
+
+    
+    let mut clipboard: ClipboardContext = ClipboardProvider::new().unwrap();
+    clipboard.set_contents(scurl.to_string()).unwrap();
+
+    println!("{}", scurl);
+}
