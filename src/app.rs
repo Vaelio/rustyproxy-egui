@@ -11,11 +11,9 @@ pub struct TemplateApp {
     menu: String,
 
     // picked_path
-    #[serde(skip)]
     picked_path: Option<String>,
 
     // Components
-    #[serde(skip)]
     components: Components,
 
 }
@@ -124,6 +122,7 @@ impl eframe::App for TemplateApp {
                 }
             }
             
+            /* check wether or not there's an inspector open or not */
             egui::warn_if_debug_build(ui);
         });
     }

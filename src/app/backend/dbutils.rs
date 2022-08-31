@@ -16,6 +16,7 @@ pub fn is_valid_project_path(fpath: &String) -> bool {
     false
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct HistLine {
     pub id: usize,
     pub uri: String,

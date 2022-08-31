@@ -2,7 +2,6 @@ use crate::app::backend::background_proc::ProxyHandler;
 use super::components::W;
 
 #[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 #[derive(Default)]
 pub struct Proxy {
     is_open: bool,
@@ -34,6 +33,8 @@ impl super::View for Proxy {
         };
         if is_spawned {
             ui.spinner();
+        } else {
+            ui.label("Nope");
         }
         ui.separator();
         if ui.button("stop").clicked(){

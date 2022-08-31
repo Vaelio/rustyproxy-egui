@@ -5,16 +5,18 @@ use poll_promise::Promise;
 use std::ops::Range;
 use super::components::W;
 use reqwest::header::HeaderMap;
+use std::path::PathBuf;
+use std::fs::File;
+use std::io::Write;
+
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct History {
     last_id: usize,
 
-    #[serde(skip)]
     inspectors: Vec<Inspector>,
 
-    #[serde(skip)]
     history: Vec<dbutils::HistLine>,
 
     #[serde(skip)]
@@ -41,20 +43,30 @@ impl Default for History {
     }
 }
 
-
+#[derive(serde::Deserialize, serde::Serialize)]
 enum ActiveInspectorMenu {
     Default,
     Repeater,
     Intruder
 }
 
+impl Default for ActiveInspectorMenu {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+#[derive(Default)]
 struct Inspector {
     id: usize,
     request: String,
     response: String,
     modified_request: String,
     new_response: String,
-    response_promise: Option<Promise<ehttp::Result<String>>>,
+    #[serde(skip)]
+    response_promise: Option<Promise<Result<String, String>>>,
     ssl: bool,
     target: String,
     active_window: ActiveInspectorMenu,
@@ -258,6 +270,22 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                     code_view_ui(ui, &mut inspected.new_response);
                 },
                 ActiveInspectorMenu::Default => {
+                    egui::menu::bar(ui, |ui| {
+                        if ui.button("☰ Save request").clicked() {
+                            if let Some(path) = rfd::FileDialog::new().save_file() {
+                                save_content_to_file(path, &inspected.request);
+                            }
+                        }
+                        ui.separator();
+                        if ui.button("☰ Save complete").clicked() {
+                            if let Some(path) = rfd::FileDialog::new().save_file() {
+                                save_content_to_file(path, &format!("--- ID ---\n{}\n--- Target ---\n{}\n--- SSL ---\n{}\n--- Orignal Request ---\n{}\n--- Orignal Response ---\n{}\n--- Modified Request ---\n{}\n--- Modified Request Response ---\n{}\n\n--- END ---", &inspected.id, &inspected.target, &inspected.ssl, &inspected.request, &inspected.response, &inspected.modified_request, &inspected.new_response));
+                            }
+                        }
+                        ui.separator();
+                        if ui.button("☰ Copy as Curl").clicked() {}
+                    });
+                    ui.separator();
                     code_view_ui(ui, &inspected.request);
                     ui.separator();
                     code_view_ui(ui, &inspected.response);
@@ -418,4 +446,19 @@ impl History {
             });
         });
     }
+}
+
+
+fn save_content_to_file (path: PathBuf, content: &String ) -> bool {
+
+    if let Ok(mut fd) = File::create(path.display().to_string()) {
+        if let Ok(_) = write!(fd, "{}", content) {
+            return true;
+        }
+    }
+    return false;
+}
+
+fn copy_as_curl (content: &String ) {
+
 }
