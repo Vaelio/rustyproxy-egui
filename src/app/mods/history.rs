@@ -407,6 +407,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
             TableBuilder::new(ui)
                 .striped(true)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Size::exact(60.0))
                 .column(Size::remainder().at_least(400.0).at_most(600.0))
                 .column(Size::exact(60.0))
                 .column(Size::exact(60.0))
@@ -419,6 +420,9 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         if let Some(Ok(r)) = &inspected.bf_promises[idx].ready() {
                             let (version, status, headers, text) = r;
                             body.row(text_height, |mut row| {
+                                row.col(|ui| {
+                                    ui.label(idx.to_string());
+                                });
                                 row.col(|ui| {
                                     ui.label(payload);
                                 });
