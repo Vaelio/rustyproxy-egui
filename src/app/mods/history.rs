@@ -26,6 +26,8 @@ pub struct History {
     current_page: usize,
 
     items_per_page: usize,
+
+    host_filter: String,
 }
 
 impl Default for History {
@@ -38,6 +40,7 @@ impl Default for History {
             is_minimized: false,
             current_page: 0,
             items_per_page: 10,
+            host_filter: String::new(),
         }
     }
 }
@@ -409,7 +412,7 @@ impl History {
                 });
             });
 
-            if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
+            if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path, &self.host_filter) {
                 for row in rows {
                     self.history.insert(0, row);
                 }
@@ -433,6 +436,18 @@ impl History {
                     &mut self.items_per_page,
                     (10 as usize)..=(self.history.len()),
                 ));
+                ui.label("Filter by host: ");
+                let response = ui.add(egui::TextEdit::singleline(&mut self.host_filter));
+                if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                    self.last_id = 0;
+                    if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path, &self.host_filter) {
+                        self.history = vec![];
+                        
+                        for row in rows {
+                            self.history.insert(0, row);
+                        }
+                    }
+                }
                 ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                     ui.horizontal(|ui| {
                         if ui.button(">").clicked() {
