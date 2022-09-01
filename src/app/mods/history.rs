@@ -1,6 +1,6 @@
 use super::components::W;
 use crate::app::backend::dbutils;
-use clipboard::{ClipboardContext, ClipboardProvider};
+//use clipboard::{ClipboardContext, ClipboardProvider};
 use egui_extras::{Size, TableBuilder};
 use poll_promise::Promise;
 use reqwest::header::HeaderMap;
@@ -222,7 +222,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         }
                         ui.separator();
                         if ui.button("☰ Copy as Curl").clicked() {
-                            copy_as_curl(&inspected.modified_request, inspected.ssl, &inspected.target);
+                            copy_as_curl(ui, &inspected.modified_request, inspected.ssl, &inspected.target);
                         }
                         ui.separator();
                         if ui.button("✉ Send").clicked() {
@@ -309,7 +309,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         }
                         ui.separator();
                         if ui.button("☰ Copy as Curl").clicked() {
-                            copy_as_curl(&inspected.request, inspected.ssl, &inspected.target);
+                            copy_as_curl(ui, &inspected.request, inspected.ssl, &inspected.target);
                         }
                         ui.separator();
                     });
@@ -665,7 +665,8 @@ fn save_content_to_file(path: PathBuf, content: &String) -> bool {
     return false;
 }
 
-fn copy_as_curl(content: &String, ssl: bool, target: &String) {
+fn copy_as_curl(ui: &mut egui::Ui, content: &String, ssl: bool, target: &String) {
+    
     let method = content.split(" ").take(1).collect::<String>();
     let uri = content.split(" ").skip(1).take(1).collect::<String>();
     let url = format!("{}://{}{}", if ssl { "https" } else { "http" }, target, uri);
@@ -684,9 +685,7 @@ fn copy_as_curl(content: &String, ssl: bool, target: &String) {
     {
         scurl.push_str(&format!(" -H '{}'", &header));
     }
-
-    let mut clipboard: ClipboardContext = ClipboardProvider::new().unwrap();
-    clipboard.set_contents(scurl.to_string()).unwrap();
+    ui.output().copied_text = scurl;
 }
 
 fn load_content_from_file(path: PathBuf) -> Option<String> {
