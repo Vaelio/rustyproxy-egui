@@ -79,11 +79,14 @@ struct Inspector {
     is_minimized: bool,
     bf_payload: Vec<String>,
     bf_request: String,
-    bf_results: Vec<String>,
     #[serde(skip)]
-    bf_promises: Vec<Promise<Vec<Result<(usize, String, String, String, String), reqwest::Error>>>>,
+    bf_results: Vec<(usize, String, String, String, String)>, 
+    #[serde(skip)]
+    bf_promises: Vec<Promise<Vec<Result<(usize, String, String, String, String), (usize, reqwest::Error)>>>>,
     #[serde(skip)]
     bf_payload_prepared: Vec<batch_req::Request>,
+    bf_current_page: usize,
+    bf_items_per_page: usize,
     childs: Vec<Inspector>,
 }
 
@@ -354,9 +357,38 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                     ui.separator();
                     code_edit_ui(&mut ui, &mut inspected.bf_request);
                     ui.separator();
-                    if inspected.bf_promises.len() > 0 {
-                        tbl_ui_bf(&mut ui, inspected);
-                    }
+                    tbl_ui_bf(&mut ui, inspected);
+                    ui.separator();
+                    egui::menu::bar(ui, |ui| {
+                        let lbl = format!("Current page: {}", inspected.bf_current_page);
+                        ui.label(lbl);
+                        ui.label("⬌ Items per page: ");
+                        ui.add(
+                            egui::Slider::new(
+                                &mut inspected.bf_items_per_page,
+                                (10 as usize)..=(inspected.bf_results.len()),
+                            )
+                            .logarithmic(true),
+                        );
+                        ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
+                            ui.horizontal(|ui| {
+                                if ui.button(">").clicked() {
+                                    if inspected.bf_results.len() - (inspected.bf_current_page * inspected.bf_items_per_page)
+                                        > inspected.bf_items_per_page
+                                    {
+                                        inspected.bf_current_page += 1;
+                                    }
+                                }
+                                if ui.button("<").clicked() {
+                                    if inspected.bf_current_page != 0 {
+                                        inspected.bf_current_page -= 1;
+                                    }
+                                };
+                                ui.monospace(inspected.bf_results.len().to_string());
+                                ui.label("Number of results: ");
+                            });
+                        });
+                    });
                 }
             }
         });
@@ -381,67 +413,89 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 .scroll(false)
                 .stick_to_bottom(false)
                 .body(|mut body| {
-                    for prom in &inspected.bf_promises {
+                    inspected.bf_promises.retain(|prom| {
                         if let Some(vr) = prom.ready() {
-                            for r in vr.iter() {
-                                if let Ok(r) = r {
-                                    let (idx, version, status, headers, text) = r;
-                                    let payload = inspected.bf_payload[*idx].to_string();
-                                    body.row(text_height, |mut row| {
-                                        row.col(|ui| {
-                                            ui.label(idx.to_string());
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(&payload);
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(text.len().to_string());
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(status);
-                                        });
-                                        row.col(|ui| {
-                                            if ui.button("🔍").clicked() {
-                                                let request = inspected
-                                                    .bf_request
-                                                    .replace("$[PAYLOAD]$", &payload)
-                                                    .to_string();
-                                                let response = format!(
-                                                    "{} {}\r\n{}\r\n{}",
-                                                    version, status, headers, text
-                                                );
-        
-                                                let ins = Inspector {
-                                                    id: *idx,
-                                                    request: request.to_string(),
-                                                    response: response.to_string(),
-                                                    modified_request: request
-                                                        .to_string()
-                                                        .replace("\r", "\\r\\n"),
-                                                    new_response: response.to_string(),
-                                                    response_promise: None,
-                                                    ssl: inspected.ssl,
-                                                    target: inspected.target.to_string(),
-                                                    active_window: ActiveInspectorMenu::Default,
-                                                    is_active: true,
-                                                    is_minimized: false,
-                                                    bf_payload: vec![],
-                                                    bf_results: vec![],
-                                                    bf_promises: vec![],
-                                                    bf_request: request.to_string().replace("\r", "\\r\\n"),
-                                                    bf_payload_prepared: vec![],
-                                                    childs: vec![],
-                                                };
-                                                inspected.childs.push(ins);
-                                            }
-                                        });
-                                    });    
+                            for r in vr {
+                                match r {
+                                    Ok((idx, version, status, headers, text)) => {
+                                        inspected.bf_results.push((*idx, version.to_string(), status.to_string(), headers.to_string(), text.to_string()))
+                                    },
+                                    Err((idx, e)) => {
+                                        inspected.bf_results.push((*idx, "SRVBUG".to_string(), e.to_string(), "SRVBUG".to_string(), "SRVBUG".to_string()))
+                                    },
                                 }
                             }
                         }
+
+                        !prom.ready().is_some()
+                    });
+                    let mut range = Range {
+                        start: inspected.bf_current_page * inspected.bf_items_per_page,
+                        end: (inspected.bf_current_page + 1) * inspected.bf_items_per_page,
+                    };
+                    range.end = if range.end > inspected.bf_results.len() {
+                        inspected.bf_results.len()
+                    } else {
+                        range.end
+                    };
+                    for r in &inspected.bf_results[range] {
+                        let (idx, version, status, headers, text) = r;
+                        let payload = inspected.bf_payload[*idx].to_string();
+                        body.row(text_height, |mut row| {
+                            row.col(|ui| {
+                                ui.label(idx.to_string());
+                            });
+                            row.col(|ui| {
+                                ui.label(&payload);
+                            });
+                            row.col(|ui| {
+                                ui.label(text.len().to_string());
+                            });
+                            row.col(|ui| {
+                                ui.label(status);
+                            });
+                            row.col(|ui| {
+                                if ui.button("🔍").clicked() {
+                                    let request = inspected
+                                        .bf_request
+                                        .replace("$[PAYLOAD]$", &payload)
+                                        .to_string();
+                                    let response = format!(
+                                        "{} {}\r\n{}\r\n{}",
+                                        version, status, headers, text
+                                    );
+
+                                    let ins = Inspector {
+                                        id: *idx,
+                                        request: request.to_string(),
+                                        response: response.to_string(),
+                                        modified_request: request
+                                            .to_string()
+                                            .replace("\r", "\\r\\n"),
+                                        new_response: response.to_string(),
+                                        response_promise: None,
+                                        ssl: inspected.ssl,
+                                        target: inspected.target.to_string(),
+                                        active_window: ActiveInspectorMenu::Default,
+                                        is_active: true,
+                                        is_minimized: false,
+                                        bf_payload: vec![],
+                                        bf_results: vec![],
+                                        bf_promises: vec![],
+                                        bf_request: request.to_string().replace("\r", "\\r\\n"),
+                                        bf_payload_prepared: vec![],
+                                        bf_current_page: 0,
+                                        bf_items_per_page: 10,
+                                        childs: vec![],
+                                    };
+                                    inspected.childs.push(ins);
+                                }
+                            });
+                        });
                     }
                 });
         });
+    
 }
 
 impl History {
@@ -528,6 +582,8 @@ impl History {
                                         bf_results: vec![],
                                         bf_promises: vec![],
                                         bf_payload_prepared: vec![],
+                                        bf_current_page: 0,
+                                        bf_items_per_page: 10,
                                         bf_request: histline
                                             .raw
                                             .to_string()

@@ -54,9 +54,10 @@ impl Request {
 }
 
 impl BatchRequest {
-    pub fn run(payloads: &Vec<Request>, promises: &mut Vec<Promise<Vec<Result<(usize, String, String, String, String), Error>>>>) {
+    pub fn run(payloads: &Vec<Request>, promises: &mut Vec<Promise<Vec<Result<(usize, String, String, String, String), (usize, Error)>>>>) {
         let mut idx_worker = 0;
-        for batch in Self::split(payloads, 300) {
+        let batch_size = if payloads.len() < 1000 { 250 } else { payloads.len()/1000 + usize::from(payloads.len()%1000 != 0)};
+        for batch in Self::split(payloads, batch_size) {
             let promise = Promise::spawn_thread(&format!("rq{}", idx_worker), move || Self::by_batch(batch));
             promises.push(promise);
             idx_worker += 1
@@ -77,7 +78,7 @@ impl BatchRequest {
 			.collect::<Vec<Vec<Request>>>()
 	}
 
-    fn by_batch(reqs: Vec<Request>) -> Vec<Result<(usize, String, String, String, String), Error>> {
+    fn by_batch(reqs: Vec<Request>) -> Vec<Result<(usize, String, String, String, String), (usize, Error)>> {
         
         let mut out = vec![];
         for req in reqs {
@@ -89,25 +90,31 @@ impl BatchRequest {
                 .unwrap();
             
             out.push(
-                cli.request(req.method, req.url)
-                    .body(req.body)
-                    .send()
-                    .and_then(move |r| {
-                        let idx = req.idx;
-                        let headers: String = r.headers().iter().map(|(key, value)| format!("{}: {}\r\n", key, value.to_str().unwrap())).collect();
-                        let version = format!("{:?}", r.version());
-                        let status = format!("{} {}", r.status().as_str(), r.status().canonical_reason().unwrap());
-                        Ok(
-                            (
-                                idx,
-                                version,
-                                status,
-                                headers,
-                                r.text().unwrap()
-                            )
-                        )
-
-                    })
+                {
+                    let r = cli.request(req.method, req.url)
+                        .body(req.body)
+                        .send();
+                    let idx = req.idx;
+                    match r {
+                        Err(e) => {
+                            Err((idx, e))
+                        },
+                        Ok(r) => {
+                            let headers: String = r.headers().iter().map(|(key, value)| format!("{}: {}\r\n", key, value.to_str().unwrap())).collect();
+                            let version = format!("{:?}", r.version());
+                            let status = format!("{} {}", r.status().as_str(), r.status().canonical_reason().unwrap());
+                            Ok(
+                                (
+                                    idx,
+                                    version,
+                                    status,
+                                    headers,
+                                    r.text().unwrap()
+                                )
+                            )    
+                        },
+                    }
+                }
             );
             
         }
