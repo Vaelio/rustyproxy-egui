@@ -1,6 +1,6 @@
 use super::components::W;
 use crate::app::backend::dbutils;
-//use clipboard::{ClipboardContext, ClipboardProvider};
+use crate::app::backend::batch_req;
 use egui_extras::{Size, TableBuilder};
 use poll_promise::Promise;
 use reqwest::header::HeaderMap;
@@ -81,7 +81,9 @@ struct Inspector {
     bf_request: String,
     bf_results: Vec<String>,
     #[serde(skip)]
-    bf_promises: Vec<Promise<Result<(String, String, String, String), reqwest::Error>>>,
+    bf_promises: Vec<Promise<Vec<Result<(usize, String, String, String, String), reqwest::Error>>>>,
+    #[serde(skip)]
+    bf_payload_prepared: Vec<batch_req::Request>,
     childs: Vec<Inspector>,
 }
 
@@ -333,47 +335,9 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         ui.separator();
                         if ui.button("✉ Send").clicked() {
                             /* Actually start bruteforcing */
-                            for payload in &inspected.bf_payload {
-                                let request = inspected.bf_request.replace("\\r\\n", "\r").replace("$[PAYLOAD]$", payload);
-                                let method = request.split(" ").take(1).collect::<String>();
-                                let uri = request.split(" ").skip(1).take(1).collect::<String>();
-                                let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
-                                let body = request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
-                                let mut headers = HeaderMap::new();
-                                for header in request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
-                                    let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
-                                    headers.insert(name, header.split(": ").skip(1).collect::<String>().parse().unwrap());
-                                }
-
-                                /* Actually send the request */
-                                let promise = Promise::spawn_thread(&format!("bf{}", payload), move || {
-                                    let cli = reqwest::blocking::Client::builder()
-                                        .danger_accept_invalid_certs(true)
-                                        .default_headers(headers)
-                                        .redirect(reqwest::redirect::Policy::none())
-                                        .build()
-                                        .unwrap();
-
-                                    cli.request(reqwest::Method::from_bytes(&method.as_bytes()).unwrap(), url)
-                                        .body(body)
-                                        .send()
-                                        .and_then(move |r| {
-                                            let headers: String = r.headers().iter().map(|(key, value)| format!("{}: {}\r\n", key, value.to_str().unwrap())).collect();
-                                            let version = format!("{:?}", r.version());
-                                            let status = format!("{} {}", r.status().as_str(), r.status().canonical_reason().unwrap());
-                                            Ok(
-                                                (
-                                                    version,
-                                                    status,
-                                                    headers,
-                                                    r.text().unwrap()
-                                                )
-                                            )
-                                        })
-                                });
-
-                                inspected.bf_promises.push(promise);
-                            }
+                            let requests: Vec<String> = inspected.bf_payload.iter().map(|p| inspected.bf_request.replace("\\r\\n", "\r").replace("$[PAYLOAD]$", p)).collect();
+                            inspected.bf_payload_prepared = batch_req::Request::from_strings(requests, inspected.ssl, inspected.target.to_string());
+                            batch_req::BatchRequest::run(&inspected.bf_payload_prepared, &mut inspected.bf_promises);
                         }
                         ui.separator();
                         if ui.button("☰ Load Payloads from File").clicked() {
@@ -417,57 +381,63 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 .scroll(false)
                 .stick_to_bottom(false)
                 .body(|mut body| {
-                    for (idx, payload) in inspected.bf_payload.iter().enumerate() {
-                        if let Some(Ok(r)) = &inspected.bf_promises[idx].ready() {
-                            let (version, status, headers, text) = r;
-                            body.row(text_height, |mut row| {
-                                row.col(|ui| {
-                                    ui.label(idx.to_string());
-                                });
-                                row.col(|ui| {
-                                    ui.label(payload);
-                                });
-                                row.col(|ui| {
-                                    ui.label(text.len().to_string());
-                                });
-                                row.col(|ui| {
-                                    ui.label(status);
-                                });
-                                row.col(|ui| {
-                                    if ui.button("🔍").clicked() {
-                                        let request = inspected
-                                            .bf_request
-                                            .replace("$[PAYLOAD]$", payload)
-                                            .to_string();
-                                        let response = format!(
-                                            "{} {}\r\n{}\r\n{}",
-                                            version, status, headers, text
-                                        );
-
-                                        let ins = Inspector {
-                                            id: idx,
-                                            request: request.to_string(),
-                                            response: response.to_string(),
-                                            modified_request: request
-                                                .to_string()
-                                                .replace("\r", "\\r\\n"),
-                                            new_response: response.to_string(),
-                                            response_promise: None,
-                                            ssl: inspected.ssl,
-                                            target: inspected.target.to_string(),
-                                            active_window: ActiveInspectorMenu::Default,
-                                            is_active: true,
-                                            is_minimized: false,
-                                            bf_payload: vec![],
-                                            bf_results: vec![],
-                                            bf_promises: vec![],
-                                            bf_request: request.to_string().replace("\r", "\\r\\n"),
-                                            childs: vec![],
-                                        };
-                                        inspected.childs.push(ins);
-                                    }
-                                });
-                            });
+                    for prom in &inspected.bf_promises {
+                        if let Some(vr) = prom.ready() {
+                            for r in vr.iter() {
+                                if let Ok(r) = r {
+                                    let (idx, version, status, headers, text) = r;
+                                    let payload = inspected.bf_payload[*idx].to_string();
+                                    body.row(text_height, |mut row| {
+                                        row.col(|ui| {
+                                            ui.label(idx.to_string());
+                                        });
+                                        row.col(|ui| {
+                                            ui.label(&payload);
+                                        });
+                                        row.col(|ui| {
+                                            ui.label(text.len().to_string());
+                                        });
+                                        row.col(|ui| {
+                                            ui.label(status);
+                                        });
+                                        row.col(|ui| {
+                                            if ui.button("🔍").clicked() {
+                                                let request = inspected
+                                                    .bf_request
+                                                    .replace("$[PAYLOAD]$", &payload)
+                                                    .to_string();
+                                                let response = format!(
+                                                    "{} {}\r\n{}\r\n{}",
+                                                    version, status, headers, text
+                                                );
+        
+                                                let ins = Inspector {
+                                                    id: *idx,
+                                                    request: request.to_string(),
+                                                    response: response.to_string(),
+                                                    modified_request: request
+                                                        .to_string()
+                                                        .replace("\r", "\\r\\n"),
+                                                    new_response: response.to_string(),
+                                                    response_promise: None,
+                                                    ssl: inspected.ssl,
+                                                    target: inspected.target.to_string(),
+                                                    active_window: ActiveInspectorMenu::Default,
+                                                    is_active: true,
+                                                    is_minimized: false,
+                                                    bf_payload: vec![],
+                                                    bf_results: vec![],
+                                                    bf_promises: vec![],
+                                                    bf_request: request.to_string().replace("\r", "\\r\\n"),
+                                                    bf_payload_prepared: vec![],
+                                                    childs: vec![],
+                                                };
+                                                inspected.childs.push(ins);
+                                            }
+                                        });
+                                    });    
+                                }
+                            }
                         }
                     }
                 });
@@ -557,6 +527,7 @@ impl History {
                                         bf_payload: vec![],
                                         bf_results: vec![],
                                         bf_promises: vec![],
+                                        bf_payload_prepared: vec![],
                                         bf_request: histline
                                             .raw
                                             .to_string()
