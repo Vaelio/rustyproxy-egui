@@ -217,12 +217,12 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         ui.separator();
                         if ui.button("☰ Save Modified Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(path, &inspected.modified_request);
+                                save_content_to_file(path, &inspected.modified_request.replace("\\r\\n", "\r"));
                             }
                         }
                         ui.separator();
                         if ui.button("☰ Copy as Curl").clicked() {
-                            copy_as_curl(ui, &inspected.modified_request, inspected.ssl, &inspected.target);
+                            copy_as_curl(ui, &inspected.modified_request.replace("\\r\\n", "\r"), inspected.ssl, &inspected.target);
                         }
                         ui.separator();
                         if ui.button("✉ Send").clicked() {
@@ -327,7 +327,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         ui.separator();
                         if ui.button("☰ Save Modified Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(path, &inspected.modified_request);
+                                save_content_to_file(path, &inspected.modified_request.replace("\\r\\n", "\r"));
                             }
                         }
                         ui.separator();
