@@ -691,9 +691,9 @@ fn copy_as_curl(ui: &mut egui::Ui, content: &String, ssl: bool, target: &String)
 
 fn load_content_from_file(path: PathBuf) -> Option<String> {
     if let Ok(mut fd) = File::open(path) {
-        let mut out = String::new();
-        if let Ok(_) = fd.read_to_string(&mut out) {
-            return Some(out.trim_end().to_string());
+        let mut out = vec![];
+        if let Ok(_) = fd.read_to_end(&mut out) {
+            return Some(String::from_utf8_lossy(&out).trim_end().to_string());
         }
     }
     None
