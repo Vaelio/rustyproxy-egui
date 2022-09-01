@@ -27,3 +27,6 @@ cargo run -r
 ## Screenshots
 ![image](https://user-images.githubusercontent.com/6543163/186920854-caf429bf-72e6-413c-9910-58fc10a7dd79.png)
 ![image](https://user-images.githubusercontent.com/6543163/186920912-449676d5-dbdf-4421-b9a8-dde84337658a.png)
+
+
+This program is licensed under GPL-3.0
