@@ -342,8 +342,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 let mut headers = HeaderMap::new();
                                 for header in request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
                                     let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
-                                    let value = reqwest::header::HeaderValue::from_bytes(header.split(": ").skip(1).collect::<String>().as_bytes()).unwrap();
-                                    headers.insert(name, value);
+                                    headers.insert(name, header.split(": ").skip(1).collect::<String>().parse().unwrap());
                                 }
 
                                 /* Actually send the request */
@@ -380,7 +379,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         if ui.button("☰ Load Payloads from File").clicked() {
                             if let Some(path) = rfd::FileDialog::new().pick_file() {
                                 if let Some(payload) = load_content_from_file(path) {
-                                    inspected.bf_payload = payload.split("\n").map(|v| v.to_string()).collect::<Vec<String>>();
+                                    inspected.bf_payload = payload.split("\n").map(|v| v.trim_end().to_string()).collect::<Vec<String>>();
                                 }
                             }
                         }
