@@ -245,6 +245,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                     let cli = reqwest::blocking::Client::builder()
                                         .danger_accept_invalid_certs(true)
                                         .default_headers(headers)
+                                        .redirect(reqwest::redirect::Policy::none())
                                         .build()
                                         .unwrap();
 
@@ -350,6 +351,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                     let cli = reqwest::blocking::Client::builder()
                                         .danger_accept_invalid_certs(true)
                                         .default_headers(headers)
+                                        .redirect(reqwest::redirect::Policy::none())
                                         .build()
                                         .unwrap();
 
