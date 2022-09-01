@@ -111,7 +111,7 @@ impl super::Component for History {
                         if child.is_active {
                             egui::Window::new(format!("Viewing Bruteforcer #{}", child.id))
                                 .title_bar(false)
-                                .id(egui::Id::new(format!("{}", child.id)))
+                                .id(egui::Id::new(format!("Bruteforcer {}", child.id)))
                                 .collapsible(true)
                                 .scroll2([true, true])
                                 .default_width(800.0)
@@ -226,7 +226,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         }
                         ui.separator();
                         if ui.button("✉ Send").clicked() {
-                            /* TODO: Parse request */
+                            /* Parse request */
                             let request = inspected.modified_request.replace("\\r\\n", "\r");
                             let method = request.split(" ").take(1).collect::<String>();
                             let uri = request.split(" ").skip(1).take(1).collect::<String>();
@@ -331,7 +331,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         }
                         ui.separator();
                         if ui.button("✉ Send").clicked() {
-                            /* TODO: Actually start bruteforcing */
+                            /* Actually start bruteforcing */
                             for payload in &inspected.bf_payload {
                                 let request = inspected.bf_request.replace("\\r\\n", "\r").replace("$[PAYLOAD]$", payload);
                                 let method = request.split(" ").take(1).collect::<String>();
@@ -362,7 +362,6 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                             let status = format!("{} {}", r.status().as_str(), r.status().canonical_reason().unwrap());
                                             Ok(
                                                 (
-                                                    //format!("{:?} {} {}\r\n{}\r\n", r.version(), r.status().as_str(), r.status().canonical_reason().unwrap(), headers),
                                                     version,
                                                     status,
                                                     headers,
