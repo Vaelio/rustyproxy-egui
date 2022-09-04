@@ -1,6 +1,7 @@
 use super::components::W;
 use crate::app::backend::dbutils;
 use crate::app::backend::batch_req;
+use crate::{paginate, tbl_dyn_col, row};
 use egui_extras::{Size, TableBuilder};
 use poll_promise::Promise;
 use reqwest::header::HeaderMap;
@@ -358,37 +359,6 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                     code_edit_ui(&mut ui, &mut inspected.bf_request);
                     ui.separator();
                     tbl_ui_bf(&mut ui, inspected);
-                    ui.separator();
-                    egui::menu::bar(ui, |ui| {
-                        let lbl = format!("Current page: {}", inspected.bf_current_page);
-                        ui.label(lbl);
-                        ui.label("⬌ Items per page: ");
-                        ui.add(
-                            egui::Slider::new(
-                                &mut inspected.bf_items_per_page,
-                                (10 as usize)..=(inspected.bf_results.len()),
-                            )
-                            .logarithmic(true),
-                        );
-                        ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
-                            ui.horizontal(|ui| {
-                                if ui.button(">").clicked() {
-                                    if inspected.bf_results.len() - (inspected.bf_current_page * inspected.bf_items_per_page)
-                                        > inspected.bf_items_per_page
-                                    {
-                                        inspected.bf_current_page += 1;
-                                    }
-                                }
-                                if ui.button("<").clicked() {
-                                    if inspected.bf_current_page != 0 {
-                                        inspected.bf_current_page -= 1;
-                                    }
-                                };
-                                ui.monospace(inspected.bf_results.len().to_string());
-                                ui.label("Number of results: ");
-                            });
-                        });
-                    });
                 }
             }
         });
@@ -401,18 +371,9 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
         .max_height(400.0)
         .show(ui, |ui| {
             let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
-            TableBuilder::new(ui)
-                .striped(true)
-                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Size::exact(60.0))
-                .column(Size::remainder().at_least(400.0).at_most(600.0))
-                .column(Size::exact(60.0))
-                .column(Size::exact(60.0))
-                .column(Size::exact(60.0))
-                .resizable(true)
-                .scroll(false)
-                .stick_to_bottom(false)
-                .body(|mut body| {
+            tbl_dyn_col!(
+                ui,
+                |mut body| {
                     inspected.bf_promises.retain(|prom| {
                         if let Some(vr) = prom.ready() {
                             for r in vr {
@@ -429,31 +390,19 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
 
                         !prom.ready().is_some()
                     });
-                    let mut range = Range {
-                        start: inspected.bf_current_page * inspected.bf_items_per_page,
-                        end: (inspected.bf_current_page + 1) * inspected.bf_items_per_page,
-                    };
-                    range.end = if range.end > inspected.bf_results.len() {
-                        inspected.bf_results.len()
-                    } else {
-                        range.end
-                    };
+                    let range = paginate!(inspected.bf_current_page, inspected.bf_items_per_page, inspected.bf_results.len());
                     for r in &inspected.bf_results[range] {
                         let (idx, version, status, headers, text) = r;
                         let payload = inspected.bf_payload[*idx].to_string();
                         body.row(text_height, |mut row| {
-                            row.col(|ui| {
-                                ui.label(idx.to_string());
-                            });
-                            row.col(|ui| {
-                                ui.label(&payload);
-                            });
-                            row.col(|ui| {
-                                ui.label(text.len().to_string());
-                            });
-                            row.col(|ui| {
-                                ui.label(status);
-                            });
+                            row!(
+                                row,
+                                idx.to_string(),
+                                &payload,
+                                text.len().to_string(),
+                                status
+                            );
+
                             row.col(|ui| {
                                 if ui.button("🔍").clicked() {
                                     let request = inspected
@@ -493,7 +442,16 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             });
                         });
                     }
-                });
+                },
+                inspected.bf_current_page,
+                inspected.bf_items_per_page,
+                inspected.bf_results.len(),
+                Size::exact(60.0),
+                Size::exact(400.0),
+                Size::exact(60.0),
+                Size::exact(60.0),
+                Size::exact(60.0)
+            );
         });
     
 }
@@ -501,101 +459,51 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
 impl History {
     fn tbl_ui(&mut self, ui: &mut egui::Ui) {
         let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
-        TableBuilder::new(ui)
-            .striped(true)
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Size::exact(40.0))
-            .column(Size::exact(80.0))
-            .column(Size::remainder().at_least(400.0).at_most(600.0))
-            .column(Size::exact(100.0))
-            .column(Size::exact(60.0))
-            .column(Size::exact(70.0))
-            .column(Size::exact(90.0))
-            .column(Size::exact(60.0))
-            .resizable(true)
-            .scroll(false)
-            .stick_to_bottom(false)
-            .body(|mut body| {
-                let mut range = Range {
-                    start: self.current_page * self.items_per_page,
-                    end: (self.current_page + 1) * self.items_per_page,
-                };
-                range.end = if range.end > self.history.len() || self.host_filter.is_some() {
-                    self.history.len()
-                } else {
-                    range.end
-                };
-
-                for histline in &mut self.history[range] {
-                    if histline.id > self.last_id {
-                        self.last_id = histline.id;
-                    }
-                    let mut f = "";
-                    if let Some(filter) = &self.host_filter {
-                        f = &filter;
-                    }
-                    let mut uri = histline.uri.to_owned();
-                    if histline.uri.starts_with("http://") {
-                        uri = format!("/{}", histline.uri.split("/").skip(3).collect::<String>());
-                    }
-                    if self.host_filter.is_none() || histline.host.contains(f) {
-                        body.row(text_height, |mut row| {
-                            row.col(|ui| {
-                                ui.label(histline.id.to_string());
-                            });
-                            row.col(|ui| {
-                                ui.label(histline.method.to_owned());
-                            });
-                            row.col(|ui| {
-                                ui.label(uri.to_owned());
-                            });
-                            row.col(|ui| {
-                                ui.label(histline.host.to_owned());
-                            });
-                            row.col(|ui| {
-                                ui.label(histline.size.to_string());
-                            });
-                            row.col(|ui| {
-                                ui.label(histline.status.to_string());
-                            });
-                            row.col(|ui| {
-                                ui.label(histline.response_time.to_owned());
-                            });
-                            row.col(|ui| {
-                                if ui.button("🔍").clicked() {
-                                    self.inspectors.push(Inspector {
-                                        id: histline.id,
-                                        request: histline.raw.to_string(),
-                                        response: histline.response.to_string(),
-                                        modified_request: histline
-                                            .raw
-                                            .to_string()
-                                            .replace("\r", "\\r\\n"),
-                                        new_response: histline.response.to_string(),
-                                        response_promise: None,
-                                        ssl: histline.ssl,
-                                        target: histline.host.to_string(),
-                                        active_window: ActiveInspectorMenu::Default,
-                                        is_active: true,
-                                        is_minimized: false,
-                                        bf_payload: vec![],
-                                        bf_results: vec![],
-                                        bf_promises: vec![],
-                                        bf_payload_prepared: vec![],
-                                        bf_current_page: 0,
-                                        bf_items_per_page: 10,
-                                        bf_request: histline
-                                            .raw
-                                            .to_string()
-                                            .replace("\r", "\\r\\n"),
-                                        childs: vec![],
-                                    });
-                                }
-                            });
-                        })
-                    }
+        tbl_dyn_col!(
+            ui,
+            |mut body| {
+                let range = paginate!(self.current_page, self.items_per_page, self.history.len());
+                for item in &self.history[range] {
+                    body.row(text_height, |mut row| {
+                        row!(
+                            row,
+                            item.id.to_string(),
+                            item.method.to_owned(),
+                            item.uri.to_owned(),
+                            item.host.to_owned(),
+                            item.size.to_string(),
+                            item.status.to_string(),
+                            item.response_time.to_owned()
+                        );
+                        row.col(|ui| {
+                            if ui.button("🔍").clicked() {
+                                let mut i = Inspector::default();
+                                i.id = item.id;
+                                i.request = item.raw.to_string();
+                                i.response = item.response.to_string();
+                                i.modified_request = item.raw.to_string().replace("\r", "\\r\\n");
+                                i.new_response = item.response.to_string();
+                                i.target = item.host.to_string();
+                                i.bf_request = item.raw.to_string().replace("\r", "\\r\\n");
+                                i.is_active = true;
+                                self.inspectors.push(i);
+                            }
+                        });
+                    })
+                    
                 }
-            });
+            },
+            self.current_page,
+            self.items_per_page,
+            self.history.len(),
+            Size::exact(40.0), 
+            Size::exact(80.0), 
+            Size::exact(400.0), 
+            Size::exact(100.0), 
+            Size::exact(60.0),
+            Size::exact(70.0), 
+            Size::exact(90.0), 
+            Size::exact(60.0));
     }
 
     fn show_table(&mut self, ui: &mut egui::Ui, path: &String) {
@@ -639,47 +547,7 @@ impl History {
                     });
             }
 
-            ui.separator();
-            egui::menu::bar(ui, |ui| {
-                let lbl = format!("Current page: {}", self.current_page);
-                ui.label(lbl);
-                ui.label("⬌ Items per page: ");
-                ui.add(
-                    egui::Slider::new(
-                        &mut self.items_per_page,
-                        (10 as usize)..=(self.history.len()),
-                    )
-                    .logarithmic(true),
-                );
-                ui.label("Filter by host: ");
-                let response = ui.add(
-                    egui::TextEdit::singleline(&mut self.host_filter_input)
-                        .id(egui::Id::new("host_filter")),
-                );
-                if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
-                    if self.host_filter_input != "" {
-                        self.host_filter = Some(self.host_filter_input.to_owned());
-                    } else {
-                        self.host_filter = None;
-                    }
-                }
-                ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
-                    ui.horizontal(|ui| {
-                        if ui.button(">").clicked() {
-                            if self.history.len() - (self.current_page * self.items_per_page)
-                                > self.items_per_page
-                            {
-                                self.current_page += 1;
-                            }
-                        }
-                        if ui.button("<").clicked() {
-                            if self.current_page != 0 {
-                                self.current_page -= 1;
-                            }
-                        };
-                    });
-                });
-            });
+            
         });
     }
 }

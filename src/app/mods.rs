@@ -1,6 +1,7 @@
 pub mod components;
 pub mod history;
 pub mod proxy;
+pub mod tables;
 
 pub trait Component {
     fn name(&self) -> &'static str;
