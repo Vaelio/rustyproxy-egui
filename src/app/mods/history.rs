@@ -7,6 +7,7 @@ use poll_promise::Promise;
 use reqwest::header::HeaderMap;
 use std::fs::File;
 use std::io::{Read, Write};
+use std::fmt::Write as fWrite;
 use std::ops::Range;
 use std::path::PathBuf;
 
@@ -81,9 +82,9 @@ struct Inspector {
     bf_payload: Vec<String>,
     bf_request: String,
     #[serde(skip)]
-    bf_results: Vec<(usize, String, String, String, String)>, 
+    bf_results: Vec<batch_req::SuccessTuple>, 
     #[serde(skip)]
-    bf_promises: Vec<Promise<Vec<Result<(usize, String, String, String, String), (usize, reqwest::Error)>>>>,
+    bf_promises: batch_req::VecPromiseType,
     #[serde(skip)]
     bf_payload_prepared: Vec<batch_req::Request>,
     bf_current_page: usize,
@@ -111,9 +112,9 @@ impl super::Component for History {
                     self.show_table(ui, path);
                 });
 
-            for mut inspector in &mut self.inspectors {
+            for inspector in &mut self.inspectors {
                 if inspector.is_active {
-                    for mut child in &mut inspector.childs {
+                    for child in &mut inspector.childs {
                         if child.is_active {
                             egui::Window::new(format!("Viewing Bruteforcer #{}", child.id))
                                 .title_bar(false)
@@ -122,7 +123,7 @@ impl super::Component for History {
                                 .scroll2([true, true])
                                 .default_width(800.0)
                                 .show(ctx, |ui| {
-                                    inspect(ui, &mut child);
+                                    inspect(ui, child);
                                 });
                         }
                     }
@@ -133,7 +134,7 @@ impl super::Component for History {
                         .scroll2([true, true])
                         .default_width(800.0)
                         .show(ctx, |ui| {
-                            inspect(ui, &mut inspector);
+                            inspect(ui, inspector);
                         });
                 }
             }
@@ -212,12 +213,12 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
     });
     ui.separator();
     if !inspected.is_minimized {
-        egui::ScrollArea::vertical().show(ui, |mut ui| {
+        egui::ScrollArea::vertical().show(ui, |ui| {
             match inspected.active_window {
                 ActiveInspectorMenu::Repeater => {
                     egui::menu::bar(ui, |ui| {
                         if ui.button("⚠ Reset").clicked() {
-                            inspected.modified_request = inspected.request.to_string().replace("\r", "\\r\\n");
+                            inspected.modified_request = inspected.request.to_string().replace('\r', "\\r\\n");
                             inspected.new_response = inspected.response.to_string();
                         }
                         ui.separator();
@@ -234,12 +235,12 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         if ui.button("✉ Send").clicked() {
                             /* Parse request */
                             let request = inspected.modified_request.replace("\\r\\n", "\r");
-                            let method = request.split(" ").take(1).collect::<String>();
-                            let uri = request.split(" ").skip(1).take(1).collect::<String>();
+                            let method = request.split(' ').take(1).collect::<String>();
+                            let uri = request.split(' ').skip(1).take(1).collect::<String>();
                             let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
                             let body = request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
                             let mut headers = HeaderMap::new();
-                            for header in request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
+                            for header in request.split("\r\n").skip(1).map_while(|x| if !x.is_empty() { Some(x) } else { None }).collect::<Vec<&str>>() {
                                 let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
                                 let value = reqwest::header::HeaderValue::from_bytes(header.split(": ").skip(1).collect::<String>().as_bytes()).unwrap();
                                 headers.insert(name, value);
@@ -247,7 +248,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
 
                             /* Actually send the request */
                             let promise = inspected.response_promise.get_or_insert_with(|| {
-                                let promise = Promise::spawn_thread("rq", move || {
+                                Promise::spawn_thread("rq", move || {
                                     let cli = reqwest::blocking::Client::builder()
                                         .danger_accept_invalid_certs(true)
                                         .default_headers(headers)
@@ -255,18 +256,15 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                         .build()
                                         .unwrap();
 
-                                    cli.request(reqwest::Method::from_bytes(&method.as_bytes()).unwrap(), url)
+                                    cli.request(reqwest::Method::from_bytes(method.as_bytes()).unwrap(), url)
                                         .body(body)
                                         .send()
-                                        .and_then(move |r| {
+                                        .map(move |r| {
                                             let headers: String = r.headers().iter().map(|(key, value)| format!("{}: {}\r\n", key, value.to_str().unwrap())).collect();
-                                                Ok(
-                                                    format!("{:?} {} {}\r\n{}\r\n{}", r.version(), r.status().as_str(), r.status().canonical_reason().unwrap(), headers, r.text().unwrap())
-                                                )
+                                            format!("{:?} {} {}\r\n{}\r\n{}", r.version(), r.status().as_str(), r.status().canonical_reason().unwrap(), headers, r.text().unwrap())
 
                                         })
-                                });
-                                promise
+                                })
                             });
 
                             if let Some(Ok(s)) = promise.ready() {
@@ -288,7 +286,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                     ui.separator();
                     code_edit_ui(ui, &mut inspected.modified_request);
                     ui.separator();
-                    code_view_ui(ui, &mut inspected.new_response);
+                    code_view_ui(ui, &inspected.new_response);
                 },
                 ActiveInspectorMenu::Default => {
                     egui::menu::bar(ui, |ui| {
@@ -328,7 +326,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 ActiveInspectorMenu::Intruder => {
                     egui::menu::bar(ui, |ui| {
                         if ui.button("⚠ Reset").clicked() {
-                            inspected.bf_request = inspected.request.to_string().replace("\r", "\\r\\n");
+                            inspected.bf_request = inspected.request.to_string().replace('\r', "\\r\\n");
                         }
                         ui.separator();
                         if ui.button("☰ Save Modified Request").clicked() {
@@ -347,7 +345,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         if ui.button("☰ Load Payloads from File").clicked() {
                             if let Some(path) = rfd::FileDialog::new().pick_file() {
                                 if let Some(payload) = load_content_from_file(path) {
-                                    inspected.bf_payload = payload.split("\n").map(|v| v.trim_end().to_string()).collect::<Vec<String>>();
+                                    inspected.bf_payload = payload.split('\n').map(|v| v.trim_end().to_string()).collect::<Vec<String>>();
                                 }
                             }
                         }
@@ -356,9 +354,9 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         ui.separator();
                     });
                     ui.separator();
-                    code_edit_ui(&mut ui, &mut inspected.bf_request);
+                    code_edit_ui(ui, &mut inspected.bf_request);
                     ui.separator();
-                    tbl_ui_bf(&mut ui, inspected);
+                    tbl_ui_bf(ui, inspected);
                 }
             }
         });
@@ -388,7 +386,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             }
                         }
 
-                        !prom.ready().is_some()
+                        prom.ready().is_none()
                     });
                     let range = paginate!(inspected.bf_current_page, inspected.bf_items_per_page, inspected.bf_results.len());
                     for r in &inspected.bf_results[range] {
@@ -407,8 +405,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 if ui.button("🔍").clicked() {
                                     let request = inspected
                                         .bf_request
-                                        .replace("$[PAYLOAD]$", &payload)
-                                        .to_string();
+                                        .replace("$[PAYLOAD]$", &payload);
                                     let response = format!(
                                         "{} {}\r\n{}\r\n{}",
                                         version, status, headers, text
@@ -419,9 +416,8 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                         request: request.to_string(),
                                         response: response.to_string(),
                                         modified_request: request
-                                            .to_string()
-                                            .replace("\r", "\\r\\n"),
-                                        new_response: response.to_string(),
+                                            .replace('\r', "\\r\\n"),
+                                        new_response: response,
                                         response_promise: None,
                                         ssl: inspected.ssl,
                                         target: inspected.target.to_string(),
@@ -431,7 +427,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                         bf_payload: vec![],
                                         bf_results: vec![],
                                         bf_promises: vec![],
-                                        bf_request: request.to_string().replace("\r", "\\r\\n"),
+                                        bf_request: request.to_string().replace('\r', "\\r\\n"),
                                         bf_payload_prepared: vec![],
                                         bf_current_page: 0,
                                         bf_items_per_page: 10,
@@ -477,15 +473,17 @@ impl History {
                         );
                         row.col(|ui| {
                             if ui.button("🔍").clicked() {
-                                let mut i = Inspector::default();
-                                i.id = item.id;
-                                i.request = item.raw.to_string();
-                                i.response = item.response.to_string();
-                                i.modified_request = item.raw.to_string().replace("\r", "\\r\\n");
-                                i.new_response = item.response.to_string();
-                                i.target = item.host.to_string();
-                                i.bf_request = item.raw.to_string().replace("\r", "\\r\\n");
-                                i.is_active = true;
+                                let i = Inspector{
+                                    id: item.id,
+                                    request: item.raw.to_string(),
+                                    response: item.response.to_string(),
+                                    modified_request: item.raw.to_string().replace('\r', "\\r\\n"),
+                                    new_response: item.response.to_string(),
+                                    target: item.host.to_string(),
+                                    bf_request: item.raw.to_string().replace('\r', "\\r\\n"),
+                                    is_active: true,
+                                    ..Default::default()
+                                };
                                 self.inspectors.push(i);
                             }
                         });
@@ -506,7 +504,7 @@ impl History {
             Size::exact(60.0));
     }
 
-    fn show_table(&mut self, ui: &mut egui::Ui, path: &String) {
+    fn show_table(&mut self, ui: &mut egui::Ui, path: &str) {
         ui.vertical(|ui| {
             egui::menu::bar(ui, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
@@ -554,17 +552,17 @@ impl History {
 
 fn save_content_to_file(path: PathBuf, content: &String) -> bool {
     if let Ok(mut fd) = File::create(path) {
-        if let Ok(_) = write!(fd, "{}", content) {
+        if write!(fd, "{}", content).is_ok() {
             return true;
         }
     }
-    return false;
+    false
 }
 
-fn copy_as_curl(ui: &mut egui::Ui, content: &String, ssl: bool, target: &String) {
+fn copy_as_curl(ui: &mut egui::Ui, content: &str, ssl: bool, target: &String) {
     
-    let method = content.split(" ").take(1).collect::<String>();
-    let uri = content.split(" ").skip(1).take(1).collect::<String>();
+    let method = content.split(' ').take(1).collect::<String>();
+    let uri = content.split(' ').skip(1).take(1).collect::<String>();
     let url = format!("{}://{}{}", if ssl { "https" } else { "http" }, target, uri);
     let body = content
         .split("\r\n\r\n")
@@ -576,10 +574,10 @@ fn copy_as_curl(ui: &mut egui::Ui, content: &String, ssl: bool, target: &String)
     for header in content
         .split("\r\n")
         .skip(1)
-        .map_while(|x| if x.len() > 0 { Some(x) } else { None })
+        .map_while(|x| if !x.is_empty() { Some(x) } else { None })
         .collect::<Vec<&str>>()
     {
-        scurl.push_str(&format!(" -H '{}'", &header));
+        write!(scurl, " -H '{}'", &header).unwrap();
     }
     ui.output().copied_text = scurl;
 }
@@ -587,7 +585,7 @@ fn copy_as_curl(ui: &mut egui::Ui, content: &String, ssl: bool, target: &String)
 fn load_content_from_file(path: PathBuf) -> Option<String> {
     if let Ok(mut fd) = File::open(path) {
         let mut out = vec![];
-        if let Ok(_) = fd.read_to_end(&mut out) {
+        if fd.read_to_end(&mut out).is_ok() {
             return Some(String::from_utf8_lossy(&out).trim_end().to_string());
         }
     }

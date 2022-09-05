@@ -7,9 +7,11 @@ fn main() {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 
-    let mut native_options = eframe::NativeOptions::default();
-    native_options.initial_window_size = Some([480.0, 200.0].into());
-    native_options.decorated = true;
+    let native_options = eframe::NativeOptions{
+        initial_window_size: Some([480.0, 200.0].into()),
+        decorated: true,
+        ..Default::default()
+    };
     eframe::run_native(
         "Rustyproxy",
         native_options,

@@ -102,14 +102,12 @@ impl eframe::App for TemplateApp {
             // The central panel the region left after adding TopPanel's and SidePanel's
             if self.picked_path.is_some() {
                 self.components.windows(ctx, &self.picked_path);
-            } else {
-                if ui.button("🗀 Open project").clicked() {
-                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                        let path = path.display().to_string();
-                        if dbutils::is_valid_project_path(&path) {
-                            self.picked_path = Some(path);
-                            self.components.open("History", true);
-                        }
+            } else if ui.button("🗀 Open project").clicked() {
+                if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                    let path = path.display().to_string();
+                    if dbutils::is_valid_project_path(&path) {
+                        self.picked_path = Some(path);
+                        self.components.open("History", true);
                     }
                 }
             }

@@ -28,23 +28,23 @@ impl Request {
             url: r.url.to_string(),
             method: Method::from(&r.method),
             body: r.body.to_vec(),
-            headers: headers,
+            headers,
         }
     }
 
     pub fn from_strings(v: Vec<String>, ssl: bool, target: String) -> Vec<Self> {
         let mut out = vec![];
         for (idx, request) in v.iter().enumerate() {
-            let method = request.split(" ").take(1).collect::<String>();
-            let uri = request.split(" ").skip(1).take(1).collect::<String>();
+            let method = request.split(' ').take(1).collect::<String>();
+            let uri = request.split(' ').skip(1).take(1).collect::<String>();
             let url = format!("{}://{}{}", if ssl { "https" } else { "http" }, target, uri);
             let body = request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
             let mut headers = HeaderMap::new();
-            for header in request.split("\r\n").skip(1).map_while(|x| if x.len() > 0 { Some(x) } else { None }).collect::<Vec<&str>>() {
+            for header in request.split("\r\n").skip(1).map_while(|x| if !x.is_empty() { Some(x) } else { None }).collect::<Vec<&str>>() {
                 let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
                 headers.insert(name, header.split(": ").skip(1).collect::<String>().parse().unwrap());
             }
-            let method = reqwest::Method::from_bytes(&method.as_bytes()).unwrap();
+            let method = reqwest::Method::from_bytes(method.as_bytes()).unwrap();
             out.push(
                 Self { idx, url, method, body, headers}
             );
@@ -53,8 +53,12 @@ impl Request {
     }
 }
 
+pub type SuccessTuple = (usize, String, String, String, String);
+pub type ErrTuple = (usize, Error);
+pub type RunResultUnitary = Result<SuccessTuple, ErrTuple>;
+pub type VecPromiseType = Vec<Promise<Vec<RunResultUnitary>>>;
 impl BatchRequest {
-    pub fn run(payloads: &Vec<Request>, promises: &mut Vec<Promise<Vec<Result<(usize, String, String, String, String), (usize, Error)>>>>) {
+    pub fn run(payloads: &Vec<Request>, promises: &mut VecPromiseType) {
         let mut idx_worker = 0;
         let batch_size = if payloads.len() < 1000 { 250 } else { payloads.len()/1000 + usize::from(payloads.len()%1000 != 0)};
         for batch in Self::split(payloads, batch_size) {
@@ -78,7 +82,7 @@ impl BatchRequest {
 			.collect::<Vec<Vec<Request>>>()
 	}
 
-    fn by_batch(reqs: Vec<Request>) -> Vec<Result<(usize, String, String, String, String), (usize, Error)>> {
+    fn by_batch(reqs: Vec<Request>) -> Vec<RunResultUnitary> {
         
         let mut out = vec![];
         for req in reqs {

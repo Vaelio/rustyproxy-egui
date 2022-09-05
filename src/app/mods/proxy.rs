@@ -48,7 +48,7 @@ impl super::View for Proxy {
 impl Proxy {
     fn start(&mut self, path: &Option<String>) {
         let path = if path.is_some() {
-            path.clone().unwrap().to_string()
+            path.clone().unwrap()
         } else {
             "/tmp/RPTProject".to_string()
         };

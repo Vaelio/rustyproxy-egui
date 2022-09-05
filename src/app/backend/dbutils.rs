@@ -8,7 +8,7 @@ pub fn try_open_conn(projectpath: &str) -> Result<Connection, Error> {
 
 pub fn is_valid_project_path(fpath: &String) -> bool {
     if Path::new(&fpath).exists() {
-        return try_open_conn(&fpath).is_ok();
+        return try_open_conn(fpath).is_ok();
     }
 
     false
@@ -29,7 +29,7 @@ pub struct HistLine {
     pub host: String,
 }
 
-pub fn get_new_from_last_id(last_id: usize, path: &String) -> Option<Vec<HistLine>> {
+pub fn get_new_from_last_id(last_id: usize, path: &str) -> Option<Vec<HistLine>> {
     if let Ok(conn) = try_open_conn(path) {
         let mut out = vec![];
 
