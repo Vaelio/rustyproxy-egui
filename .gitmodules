@@ -1,0 +1,3 @@
+[submodule "rustyproxy-srv"]
+	path = rustyproxy-srv
+	url = https://gitlab.com/r2367/rustyproxy-srv
