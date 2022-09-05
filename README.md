@@ -7,7 +7,17 @@ The point is to take requests from a database in order to inspect/replay/brutefo
 If you want to contribute, mp me on [Matrix](https://matrix.to/#/@vaelio:matarch.fr) !
 
 ## Getting started
+### Running normally
 
+```bash
+git clone --recurse-submodules https://github.com/vaelio/rustyproxy-egui
+cd rustyproxy-egui
+cargo run -r
+```
+
+then start the proxy server using the start button on bottom right of the GUI.
+
+### Running separately Server and GUI
 First, run the server:
 
 ```bash
