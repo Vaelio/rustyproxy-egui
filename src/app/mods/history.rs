@@ -462,13 +462,15 @@ impl History {
             |mut body| {
                 let range = paginate!(self.current_page, self.items_per_page, self.history.len());
                 for item in &self.history[range] {
+                    let uri = if item.uri.len() > 50 { format!("{}[...]", &item.uri[..50]) } else { item.uri.to_owned() };
+                    let host = if item.host.len() > 11 { item.host[..11].to_string()} else {item.host.to_owned()};
                     body.row(text_height, |mut row| {
                         row!(
                             row,
                             item.id.to_string(),
                             item.method.to_owned(),
-                            item.uri.to_owned(),
-                            item.host.to_owned(),
+                            uri,
+                            host,
                             item.size.to_string(),
                             item.status.to_string(),
                             item.response_time.to_owned()
