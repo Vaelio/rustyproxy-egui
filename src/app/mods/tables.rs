@@ -45,20 +45,18 @@ macro_rules! tbl_dyn_col {
 
 #[macro_export]
 macro_rules! paginate {
-    ($current_page: expr, $items_per_page: expr, $items_number: expr) => {
-        {
-            let mut range = Range {
-                start: $current_page * $items_per_page,
-                end: ($current_page+1) * $items_per_page,
-            };
-            range.end = if range.end > $items_number{
-                $items_number
-            } else {
-                range.end
-            };
-            range
-        }
-    }
+    ($current_page: expr, $items_per_page: expr, $items_number: expr) => {{
+        let mut range = Range {
+            start: $current_page * $items_per_page,
+            end: ($current_page + 1) * $items_per_page,
+        };
+        range.end = if range.end > $items_number {
+            $items_number
+        } else {
+            range.end
+        };
+        range
+    }};
 }
 
 #[macro_export]

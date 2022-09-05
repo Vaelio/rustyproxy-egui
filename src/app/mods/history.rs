@@ -1,13 +1,13 @@
 use super::components::W;
-use crate::app::backend::dbutils;
 use crate::app::backend::batch_req;
-use crate::{paginate, tbl_dyn_col, row};
+use crate::app::backend::dbutils;
+use crate::{paginate, row, tbl_dyn_col};
 use egui_extras::{Size, TableBuilder};
 use poll_promise::Promise;
 use reqwest::header::HeaderMap;
+use std::fmt::Write as fWrite;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::fmt::Write as fWrite;
 use std::ops::Range;
 use std::path::PathBuf;
 
@@ -82,7 +82,7 @@ struct Inspector {
     bf_payload: Vec<String>,
     bf_request: String,
     #[serde(skip)]
-    bf_results: Vec<batch_req::SuccessTuple>, 
+    bf_results: Vec<batch_req::SuccessTuple>,
     #[serde(skip)]
     bf_promises: batch_req::VecPromiseType,
     #[serde(skip)]
@@ -377,18 +377,32 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             for r in vr {
                                 match r {
                                     Ok((idx, version, status, headers, text)) => {
-                                        inspected.bf_results.push((*idx, version.to_string(), status.to_string(), headers.to_string(), text.to_string()))
-                                    },
-                                    Err((idx, e)) => {
-                                        inspected.bf_results.push((*idx, "SRVBUG".to_string(), e.to_string(), "SRVBUG".to_string(), "SRVBUG".to_string()))
-                                    },
+                                        inspected.bf_results.push((
+                                            *idx,
+                                            version.to_string(),
+                                            status.to_string(),
+                                            headers.to_string(),
+                                            text.to_string(),
+                                        ))
+                                    }
+                                    Err((idx, e)) => inspected.bf_results.push((
+                                        *idx,
+                                        "SRVBUG".to_string(),
+                                        e.to_string(),
+                                        "SRVBUG".to_string(),
+                                        "SRVBUG".to_string(),
+                                    )),
                                 }
                             }
                         }
 
                         prom.ready().is_none()
                     });
-                    let range = paginate!(inspected.bf_current_page, inspected.bf_items_per_page, inspected.bf_results.len());
+                    let range = paginate!(
+                        inspected.bf_current_page,
+                        inspected.bf_items_per_page,
+                        inspected.bf_results.len()
+                    );
                     for r in &inspected.bf_results[range] {
                         let (idx, version, status, headers, text) = r;
                         let payload = inspected.bf_payload[*idx].to_string();
@@ -403,9 +417,8 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
 
                             row.col(|ui| {
                                 if ui.button("🔍").clicked() {
-                                    let request = inspected
-                                        .bf_request
-                                        .replace("$[PAYLOAD]$", &payload);
+                                    let request =
+                                        inspected.bf_request.replace("$[PAYLOAD]$", &payload);
                                     let response = format!(
                                         "{} {}\r\n{}\r\n{}",
                                         version, status, headers, text
@@ -415,8 +428,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                         id: *idx,
                                         request: request.to_string(),
                                         response: response.to_string(),
-                                        modified_request: request
-                                            .replace('\r', "\\r\\n"),
+                                        modified_request: request.replace('\r', "\\r\\n"),
                                         new_response: response,
                                         ssl: inspected.ssl,
                                         target: inspected.target.to_string(),
@@ -440,7 +452,6 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 Size::exact(60.0)
             );
         });
-    
 }
 
 impl History {
@@ -464,7 +475,7 @@ impl History {
                         );
                         row.col(|ui| {
                             if ui.button("🔍").clicked() {
-                                let i = Inspector{
+                                let i = Inspector {
                                     id: item.id,
                                     request: item.raw.to_string(),
                                     response: item.response.to_string(),
@@ -479,20 +490,20 @@ impl History {
                             }
                         });
                     })
-                    
                 }
             },
             self.current_page,
             self.items_per_page,
             self.history.len(),
-            Size::exact(40.0), 
-            Size::exact(80.0), 
-            Size::exact(400.0), 
-            Size::exact(100.0), 
+            Size::exact(40.0),
+            Size::exact(80.0),
+            Size::exact(400.0),
+            Size::exact(100.0),
             Size::exact(60.0),
-            Size::exact(70.0), 
-            Size::exact(90.0), 
-            Size::exact(60.0));
+            Size::exact(70.0),
+            Size::exact(90.0),
+            Size::exact(60.0)
+        );
     }
 
     fn show_table(&mut self, ui: &mut egui::Ui, path: &str) {
@@ -535,8 +546,6 @@ impl History {
                         self.tbl_ui(ui);
                     });
             }
-
-            
         });
     }
 }
@@ -551,7 +560,6 @@ fn save_content_to_file(path: PathBuf, content: &String) -> bool {
 }
 
 fn copy_as_curl(ui: &mut egui::Ui, content: &str, ssl: bool, target: &String) {
-    
     let method = content.split(' ').take(1).collect::<String>();
     let uri = content.split(' ').skip(1).take(1).collect::<String>();
     let url = format!("{}://{}{}", if ssl { "https" } else { "http" }, target, uri);
