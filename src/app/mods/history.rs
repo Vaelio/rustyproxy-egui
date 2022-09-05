@@ -403,7 +403,8 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                     let range = paginate!(
                         inspected.bf_current_page,
                         inspected.bf_items_per_page,
-                        inspected.bf_results.len()
+                        inspected.bf_results.len(),
+                        inspected.bf_filter
                     );
                     for r in &inspected.bf_results[range] {
                         let (idx, version, status, headers, text) = r;
@@ -464,7 +465,7 @@ impl History {
         tbl_dyn_col!(
             ui,
             |mut body| {
-                let range = paginate!(self.current_page, self.items_per_page, self.history.len());
+                let range = paginate!(self.current_page, self.items_per_page, self.history.len(), self.filter);
                 for item in &self.history[range] {
                     if filter!(item.host, &self.filter) {
                         let uri = if item.uri.len() > 50 { format!("{}[...]", &item.uri[..50]) } else { item.uri.to_owned() };

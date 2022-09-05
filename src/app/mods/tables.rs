@@ -22,10 +22,7 @@ macro_rules! tbl_dyn_col {
                 .logarithmic(true),
             );
             ui.label("Filter by host: ");
-            let response = ui.add(
-                egui::TextEdit::singleline($filter_input)
-                    .id(egui::Id::new("filter")),
-            );
+            let response = ui.text_edit_singleline($filter_input);
             if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
                 if $filter_input != "" {
                     $filter = Some($filter_input.to_owned());
@@ -57,12 +54,12 @@ macro_rules! tbl_dyn_col {
 
 #[macro_export]
 macro_rules! paginate {
-    ($current_page: expr, $items_per_page: expr, $items_number: expr) => {{
+    ($current_page: expr, $items_per_page: expr, $items_number: expr, $filter: expr) => {{
         let mut range = Range {
             start: $current_page * $items_per_page,
             end: ($current_page + 1) * $items_per_page,
         };
-        range.end = if range.end > $items_number {
+        range.end = if range.end > $items_number || $filter.is_some() {
             $items_number
         } else {
             range.end
