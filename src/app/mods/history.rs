@@ -292,7 +292,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                     egui::menu::bar(ui, |ui| {
                         if ui.button("☰ Save Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(path, &inspected.request);
+                                save_content_to_file(path, &inspected.request.replace("\r\n", "\r"));
                             }
                         }
                         ui.separator();
