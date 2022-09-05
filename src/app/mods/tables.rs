@@ -64,7 +64,7 @@ macro_rules! row {
     ($row: ident, $($cols:expr ),*) => {
         $(
             $row.col(|ui|{
-                ui.label($cols);
+                ui.add(egui::Label::new($cols).wrap(true));
             });
         )*
     }
