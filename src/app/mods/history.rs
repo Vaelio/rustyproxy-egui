@@ -1,7 +1,7 @@
 use super::components::W;
 use crate::app::backend::batch_req;
 use crate::app::backend::dbutils;
-use crate::{paginate, row, tbl_dyn_col};
+use crate::{paginate, row, tbl_dyn_col, filter};
 use egui_extras::{Size, TableBuilder};
 use poll_promise::Promise;
 use reqwest::header::HeaderMap;
@@ -29,9 +29,9 @@ pub struct History {
 
     items_per_page: usize,
 
-    host_filter: Option<String>,
+    filter: Option<String>,
 
-    host_filter_input: String,
+    filter_input: String,
 }
 
 impl Default for History {
@@ -44,8 +44,8 @@ impl Default for History {
             is_minimized: false,
             current_page: 0,
             items_per_page: 10,
-            host_filter: None,
-            host_filter_input: String::new(),
+            filter: None,
+            filter_input: String::new(),
         }
     }
 }
@@ -90,6 +90,8 @@ struct Inspector {
     bf_current_page: usize,
     bf_items_per_page: usize,
     childs: Vec<Inspector>,
+    bf_filter_input: String,
+    bf_filter: Option<String>,
 }
 
 impl W for History {}
@@ -445,6 +447,8 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 inspected.bf_current_page,
                 inspected.bf_items_per_page,
                 inspected.bf_results.len(),
+                inspected.bf_filter,
+                &mut inspected.bf_filter_input,
                 Size::exact(60.0),
                 Size::exact(400.0),
                 Size::exact(60.0),
@@ -462,41 +466,46 @@ impl History {
             |mut body| {
                 let range = paginate!(self.current_page, self.items_per_page, self.history.len());
                 for item in &self.history[range] {
-                    let uri = if item.uri.len() > 50 { format!("{}[...]", &item.uri[..50]) } else { item.uri.to_owned() };
-                    let host = if item.host.len() > 11 { item.host[..11].to_string()} else {item.host.to_owned()};
-                    body.row(text_height, |mut row| {
-                        row!(
-                            row,
-                            item.id.to_string(),
-                            item.method.to_owned(),
-                            uri,
-                            host,
-                            item.size.to_string(),
-                            item.status.to_string(),
-                            item.response_time.to_owned()
-                        );
-                        row.col(|ui| {
-                            if ui.button("🔍").clicked() {
-                                let i = Inspector {
-                                    id: item.id,
-                                    request: item.raw.to_string(),
-                                    response: item.response.to_string(),
-                                    modified_request: item.raw.to_string().replace('\r', "\\r\\n"),
-                                    new_response: item.response.to_string(),
-                                    target: item.host.to_string(),
-                                    bf_request: item.raw.to_string().replace('\r', "\\r\\n"),
-                                    is_active: true,
-                                    ..Default::default()
-                                };
-                                self.inspectors.push(i);
-                            }
-                        });
-                    })
+                    if filter!(item.host, &self.filter) {
+                        let uri = if item.uri.len() > 50 { format!("{}[...]", &item.uri[..50]) } else { item.uri.to_owned() };
+                        let host = if item.host.len() > 11 { item.host[..11].to_string()} else {item.host.to_owned()};
+                        body.row(text_height, |mut row| {
+                            row!(
+                                row,
+                                item.id.to_string(),
+                                item.method.to_owned(),
+                                uri,
+                                host,
+                                item.size.to_string(),
+                                item.status.to_string(),
+                                item.response_time.to_owned()
+                            );
+                            row.col(|ui| {
+                                if ui.button("🔍").clicked() {
+                                    let i = Inspector {
+                                        id: item.id,
+                                        request: item.raw.to_string(),
+                                        response: item.response.to_string(),
+                                        modified_request: item.raw.to_string().replace('\r', "\\r\\n"),
+                                        new_response: item.response.to_string(),
+                                        target: item.host.to_string(),
+                                        bf_request: item.raw.to_string().replace('\r', "\\r\\n"),
+                                        is_active: true,
+                                        ..Default::default()
+                                    };
+                                    self.inspectors.push(i);
+                                }
+                            });
+                        })
+                    }
+                    
                 }
             },
             self.current_page,
             self.items_per_page,
             self.history.len(),
+            self.filter,
+            &mut self.filter_input,
             Size::exact(40.0),
             Size::exact(80.0),
             Size::exact(400.0),

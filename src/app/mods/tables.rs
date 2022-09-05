@@ -1,6 +1,6 @@
 #[macro_export]
 macro_rules! tbl_dyn_col {
-    ( $ui: expr, $closure: expr, $current_page: expr, $items_per_page: expr, $items_number: expr, $($cols:expr ),*) => {
+    ( $ui: expr, $closure: expr, $current_page: expr, $items_per_page: expr, $items_number: expr, $filter: expr, $filter_input: expr, $($cols:expr ),*) => {
         TableBuilder::new($ui)
             .striped(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
@@ -21,6 +21,18 @@ macro_rules! tbl_dyn_col {
                 )
                 .logarithmic(true),
             );
+            ui.label("Filter by host: ");
+            let response = ui.add(
+                egui::TextEdit::singleline($filter_input)
+                    .id(egui::Id::new("filter")),
+            );
+            if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                if $filter_input != "" {
+                    $filter = Some($filter_input.to_owned());
+                } else {
+                    $filter = None;
+                }
+            }
             ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                 ui.horizontal(|ui| {
                     if ui.button(">").clicked() {
@@ -67,5 +79,12 @@ macro_rules! row {
                 ui.add(egui::Label::new($cols).wrap(true));
             });
         )*
+    }
+}
+
+#[macro_export]
+macro_rules! filter {
+    ($item: expr, $filter: expr) => {
+        $filter.is_none() || $filter.is_some() && $item.contains::<&str>($filter.as_ref().unwrap())
     }
 }
