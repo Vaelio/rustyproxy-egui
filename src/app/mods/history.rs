@@ -418,20 +418,11 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                         modified_request: request
                                             .replace('\r', "\\r\\n"),
                                         new_response: response,
-                                        response_promise: None,
                                         ssl: inspected.ssl,
                                         target: inspected.target.to_string(),
-                                        active_window: ActiveInspectorMenu::Default,
                                         is_active: true,
-                                        is_minimized: false,
-                                        bf_payload: vec![],
-                                        bf_results: vec![],
-                                        bf_promises: vec![],
                                         bf_request: request.to_string().replace('\r', "\\r\\n"),
-                                        bf_payload_prepared: vec![],
-                                        bf_current_page: 0,
-                                        bf_items_per_page: 10,
-                                        childs: vec![],
+                                        ..Default::default()
                                     };
                                     inspected.childs.push(ins);
                                 }
