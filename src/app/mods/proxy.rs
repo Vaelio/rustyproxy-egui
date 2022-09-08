@@ -52,7 +52,7 @@ impl Proxy {
         } else {
             "/tmp/RPTProject".to_string()
         };
-        self.handler = Some(ProxyHandler::start("/bin/sh", ["-c", &format!("cd ./rustyproxy-srv/ && ./build.sh && ./target/release/rustyproxy-srv -d {}", &path)]));
+        self.handler = Some(ProxyHandler::start("/bin/sh", ["-c", &format!("cd ./rustyproxy-srv/ && ./build.sh && ./target/release/rustyproxy-srv -d {} --secret TEST", &path)]));
     }
 
     fn stop(&mut self) {

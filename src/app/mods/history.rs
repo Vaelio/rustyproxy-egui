@@ -76,21 +76,29 @@ struct Inspector {
     response_promise: Option<Promise<Result<String, reqwest::Error>>>,
     ssl: bool,
     target: String,
+    #[serde(skip)]
     active_window: ActiveInspectorMenu,
+    #[serde(skip)]
     is_active: bool,
+    #[serde(skip)]
     is_minimized: bool,
+    #[serde(skip)]
     bf_payload: Vec<String>,
     bf_request: String,
-    #[serde(skip)]
     bf_results: Vec<batch_req::SuccessTuple>,
     #[serde(skip)]
     bf_promises: batch_req::VecPromiseType,
     #[serde(skip)]
     bf_payload_prepared: Vec<batch_req::Request>,
+    #[serde(skip)]
     bf_current_page: usize,
+    #[serde(skip)]
     bf_items_per_page: usize,
+    #[serde(skip)]
     childs: Vec<Inspector>,
+    #[serde(skip)]
     bf_filter_input: String,
+    #[serde(skip)]
     bf_filter: Option<String>,
 }
 
@@ -302,15 +310,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
                                 save_content_to_file(
                                     path,
-                                    &format!(
-                                        "--- ID ---\n{}\n--- Target ---\n{}\n--- SSL ---\n{}\n--- Orignal Request ---\n{}\n--- Orignal Response ---\n{}\n--- Modified Request ---\n{}\n--- Modified Request Response ---\n{}\n\n--- END ---",
-                                        &inspected.id,
-                                        &inspected.target,
-                                        &inspected.ssl,
-                                        &inspected.request,
-                                        &inspected.response,
-                                        &inspected.modified_request,
-                                        &inspected.new_response)
+                                    &serde_json::to_string(&inspected).unwrap()
                                 );
                             }
                         }
