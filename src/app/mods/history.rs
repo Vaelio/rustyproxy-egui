@@ -1,6 +1,7 @@
 use super::components::W;
 use crate::app::backend::batch_req;
 use crate::app::backend::dbutils;
+use crate::app::backend::apiutils;
 use crate::{paginate, row, tbl_dyn_col, filter};
 use egui_extras::{Size, TableBuilder};
 use poll_promise::Promise;
@@ -10,6 +11,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::ops::Range;
 use std::path::PathBuf;
+
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -32,6 +34,17 @@ pub struct History {
     filter: Option<String>,
 
     filter_input: String,
+
+    is_remote: bool,
+
+    #[serde(skip)]
+    api_secret: Option<String>,
+
+    #[serde(skip)]
+    api_addr: Option<String>,
+
+    #[serde(skip)]
+    response_promise: Option<Promise<Result<String, reqwest::Error>>>,
 }
 
 impl Default for History {
@@ -46,6 +59,10 @@ impl Default for History {
             items_per_page: 10,
             filter: None,
             filter_input: String::new(),
+            is_remote: false,
+            response_promise: None,
+            api_addr: None,
+            api_secret: None,
         }
     }
 }
@@ -109,51 +126,65 @@ impl super::Component for History {
         "History"
     }
 
-    fn show(&mut self, ctx: &egui::Context, _open: &mut bool, path: &Option<String>) {
-        if let Some(path) = path {
-            egui::Window::new("History")
-                .scroll2([true, false])
-                .resizable(true)
-                .title_bar(false)
-                .id(egui::Id::new("History"))
-                .default_width(1024.0)
-                .anchor(egui::Align2::LEFT_TOP, [0.0, 0.0])
-                .show(ctx, |ui| {
-                    self.show_table(ui, path);
-                });
-
-            for inspector in &mut self.inspectors {
-                if inspector.is_active {
-                    for child in &mut inspector.childs {
-                        if child.is_active {
-                            egui::Window::new(format!("Viewing Bruteforcer #{}", child.id))
-                                .title_bar(false)
-                                .id(egui::Id::new(format!("Bruteforcer {}", child.id)))
-                                .collapsible(true)
-                                .scroll2([true, true])
-                                .default_width(800.0)
-                                .show(ctx, |ui| {
-                                    inspect(ui, child);
-                                });
+    fn show(&mut self, ctx: &egui::Context, open: &mut bool, path: &mut Option<String>) {
+        if *open {
+            if let Some(path) = path {
+                egui::Window::new("History")
+                    .scroll2([true, false])
+                    .resizable(true)
+                    .title_bar(false)
+                    .id(egui::Id::new("History"))
+                    .default_width(1024.0)
+                    .anchor(egui::Align2::LEFT_TOP, [0.0, 0.0])
+                    .show(ctx, |ui| {
+                        self.show_table(ui, path);
+                    });
+    
+                for inspector in &mut self.inspectors {
+                    if inspector.is_active {
+                        for child in &mut inspector.childs {
+                            if child.is_active {
+                                egui::Window::new(format!("Viewing Bruteforcer #{}", child.id))
+                                    .title_bar(false)
+                                    .id(egui::Id::new(format!("Bruteforcer {}", child.id)))
+                                    .collapsible(true)
+                                    .scroll2([true, true])
+                                    .default_width(800.0)
+                                    .show(ctx, |ui| {
+                                        inspect(ui, child);
+                                    });
+                            }
                         }
+                        egui::Window::new(format!("Viewing #{}", inspector.id))
+                            .title_bar(false)
+                            .id(egui::Id::new(format!("{}", inspector.id)))
+                            .collapsible(true)
+                            .scroll2([true, true])
+                            .default_width(800.0)
+                            .show(ctx, |ui| {
+                                inspect(ui, inspector);
+                            });
                     }
-                    egui::Window::new(format!("Viewing #{}", inspector.id))
-                        .title_bar(false)
-                        .id(egui::Id::new(format!("{}", inspector.id)))
-                        .collapsible(true)
-                        .scroll2([true, true])
-                        .default_width(800.0)
-                        .show(ctx, |ui| {
-                            inspect(ui, inspector);
-                        });
                 }
             }
         }
     }
+
+    fn set_is_remote(&mut self, b: bool) {
+        self.is_remote = b;
+    }
+
+    fn set_api_addr(&mut self, a: Option<String>) {
+        self.api_addr = a;
+    }
+
+    fn set_api_secret(&mut self, s: Option<String>) {
+        self.api_secret = s;
+    }
 }
 
 impl super::View for History {
-    fn ui(&mut self, _ui: &mut egui::Ui, _path: &Option<String>) {}
+    fn ui(&mut self, _ui: &mut egui::Ui, _path: &mut Option<String>) {}
 }
 
 fn code_view_ui(ui: &mut egui::Ui, mut code: &str) {
@@ -538,17 +569,53 @@ impl History {
                     });
                 });
             });
+            match self.is_remote {
+                true => {
 
-            if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
-                for row in rows {
-                    self.last_id = if row.id > self.last_id {
-                        row.id
-                    } else {
-                        self.last_id
-                    };
-                    self.history.insert(0, row);
-                }
+                    let promise = self.response_promise.get_or_insert_with(|| {
+                        let last_id = self.last_id;
+                        let url = format!("{}:8443", self.api_addr.clone().unwrap());
+                        let secret = self.api_secret.clone().unwrap();
+                        Promise::spawn_thread("api", move || {
+                            apiutils::get_new_from_last_id(last_id, &url, &secret)
+                        })
+                        
+                    });
+
+                    if let Some(p) = promise.ready() {
+                        if let Ok(s) = p {
+                            let rows = apiutils::parse_result(s.to_string());
+                            for row in rows {
+                                self.last_id = if row.id > self.last_id {
+                                    row.id
+                                } else {
+                                    self.last_id
+                                };
+                                self.history.insert(0, row);
+                            }
+                            self.response_promise = None;
+                            ui.ctx().request_repaint();
+                        } else {
+                            self.response_promise = None;
+                        }
+                        
+                    }
+                    
+                },
+                false => {
+                    if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
+                        for row in rows {
+                            self.last_id = if row.id > self.last_id {
+                                row.id
+                            } else {
+                                self.last_id
+                            };
+                            self.history.insert(0, row);
+                        }
+                    }
+                },
             }
+            
 
             if !self.is_minimized {
                 egui::ScrollArea::both()

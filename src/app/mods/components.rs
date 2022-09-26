@@ -39,7 +39,7 @@ impl Components {
         None
     }
 
-    pub fn windows(&mut self, ctx: &Context, path: &Option<String>) {
+    pub fn windows(&mut self, ctx: &Context, path: &mut Option<String>) {
         let Self { components, open } = self;
         for component in components {
             let mut is_open = open.contains(component.name());

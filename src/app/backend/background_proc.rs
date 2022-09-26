@@ -5,6 +5,7 @@ pub struct ProxyHandler {
     handle: Child,
 }
 
+#[allow(dead_code)]
 impl ProxyHandler {
     pub fn start<T, S>(command: &str, args: T) -> Self
     where

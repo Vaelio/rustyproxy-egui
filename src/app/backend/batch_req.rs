@@ -84,17 +84,16 @@ pub type RunResultUnitary = Result<SuccessTuple, ErrTuple>;
 pub type VecPromiseType = Vec<Promise<Vec<RunResultUnitary>>>;
 impl BatchRequest {
     pub fn run(payloads: &Vec<Request>, promises: &mut VecPromiseType) {
-        let mut idx_worker = 0;
         let batch_size = if payloads.len() < 1000 {
             250
         } else {
             payloads.len() / 1000 + usize::from(payloads.len() % 1000 != 0)
         };
-        for batch in Self::split(payloads, batch_size) {
+
+        for (idx_worker, batch) in Self::split(payloads, batch_size).into_iter().enumerate() {
             let promise =
                 Promise::spawn_thread(&format!("rq{}", idx_worker), move || Self::by_batch(batch));
             promises.push(promise);
-            idx_worker += 1
         }
     }
 
