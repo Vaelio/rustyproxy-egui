@@ -263,6 +263,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             inspected.new_response = inspected.response.to_string();
                         }
                         ui.separator();
+                        #[cfg(not(target_arch = "wasm32"))]
                         if ui.button("☰ Save Modified Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
                                 save_content_to_file(
@@ -271,6 +272,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 );
                             }
                         }
+                        #[cfg(not(target_arch = "wasm32"))]
                         ui.separator();
                         if ui.button("☰ Copy as Curl").clicked() {
                             copy_as_curl(
@@ -375,6 +377,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 }
                 ActiveInspectorMenu::Default => {
                     egui::menu::bar(ui, |ui| {
+                        #[cfg(not(target_arch = "wasm32"))]
                         if ui.button("☰ Save Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
                                 save_content_to_file(
@@ -383,7 +386,9 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 );
                             }
                         }
+                        #[cfg(not(target_arch = "wasm32"))]
                         ui.separator();
+                        #[cfg(not(target_arch = "wasm32"))]
                         if ui.button("☰ Save All").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
                                 save_content_to_file(
@@ -392,6 +397,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 );
                             }
                         }
+                        #[cfg(not(target_arch = "wasm32"))]
                         ui.separator();
                         if ui.button("☰ Copy as Curl").clicked() {
                             copy_as_curl(ui, &inspected.request, inspected.ssl, &inspected.target);
@@ -410,6 +416,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 inspected.request.to_string().replace('\r', "\\r\\n");
                         }
                         ui.separator();
+                        #[cfg(not(target_arch = "wasm32"))]
                         if ui.button("☰ Save Modified Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
                                 save_content_to_file(
@@ -418,6 +425,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 );
                             }
                         }
+                        #[cfg(not(target_arch = "wasm32"))]
                         ui.separator();
                         if ui.button("✉ Send").clicked() {
                             /* Actually start bruteforcing */
@@ -442,6 +450,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             );
                         }
                         ui.separator();
+                        #[cfg(not(target_arch = "wasm32"))]
                         if ui.button("☰ Load Payloads from File").clicked() {
                             if let Some(path) = rfd::FileDialog::new().pick_file() {
                                 if let Some(payload) = load_content_from_file(path) {
@@ -452,6 +461,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                 }
                             }
                         }
+                        #[cfg(not(target_arch = "wasm32"))]
                         ui.separator();
                         ui.label(format!("Number of request: {}", inspected.bf_payload.len()));
                         ui.separator();
@@ -684,6 +694,7 @@ impl History {
                     }
                 }
                 false => {
+                    #[cfg(not(target_arch = "wasm32"))]
                     if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
                         for row in rows {
                             self.last_id = if row.id > self.last_id {

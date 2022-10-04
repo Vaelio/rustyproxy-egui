@@ -1,4 +1,5 @@
 use super::components::W;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::app::backend::dbutils;
 use crate::app::mods::View;
 
@@ -81,6 +82,7 @@ impl super::View for Proxy {
             /* open local project */
             if !self.is_minimized {
                 ui.vertical(|ui| {
+                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.button("🗀 Open Local Project").clicked() {
                         if let Some(fpath) = rfd::FileDialog::new().pick_folder() {
                             let fpath = fpath.display().to_string();
