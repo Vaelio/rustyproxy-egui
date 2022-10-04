@@ -31,12 +31,7 @@ impl Components {
     }
 
     pub fn get_component_by_name(&mut self, key: &'static str) -> Option<&mut Box<dyn W>> {
-        for compo in &mut self.components {
-            if compo.name() == key {
-                return Some(compo);
-            }
-        }
-        None
+        self.components.iter_mut().find(|compo| compo.name() == key)
     }
 
     pub fn windows(&mut self, ctx: &Context, path: &mut Option<String>) {

@@ -1,8 +1,8 @@
 use super::components::W;
+use crate::app::backend::apiutils;
 use crate::app::backend::batch_req;
 use crate::app::backend::dbutils;
-use crate::app::backend::apiutils;
-use crate::{paginate, row, tbl_dyn_col, filter};
+use crate::{filter, paginate, row, tbl_dyn_col};
 use egui_extras::{Size, TableBuilder};
 use poll_promise::Promise;
 use reqwest::header::HeaderMap;
@@ -11,7 +11,6 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::ops::Range;
 use std::path::PathBuf;
-
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -139,7 +138,7 @@ impl super::Component for History {
                     .show(ctx, |ui| {
                         self.show_table(ui, path);
                     });
-    
+
                 for inspector in &mut self.inspectors {
                     if inspector.is_active {
                         for child in &mut inspector.childs {
@@ -259,18 +258,27 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 ActiveInspectorMenu::Repeater => {
                     egui::menu::bar(ui, |ui| {
                         if ui.button("⚠ Reset").clicked() {
-                            inspected.modified_request = inspected.request.to_string().replace('\r', "\\r\\n");
+                            inspected.modified_request =
+                                inspected.request.to_string().replace('\r', "\\r\\n");
                             inspected.new_response = inspected.response.to_string();
                         }
                         ui.separator();
                         if ui.button("☰ Save Modified Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(path, &inspected.modified_request.replace("\\r\\n", "\r"));
+                                save_content_to_file(
+                                    path,
+                                    &inspected.modified_request.replace("\\r\\n", "\r"),
+                                );
                             }
                         }
                         ui.separator();
                         if ui.button("☰ Copy as Curl").clicked() {
-                            copy_as_curl(ui, &inspected.modified_request.replace("\\r\\n", "\r"), inspected.ssl, &inspected.target);
+                            copy_as_curl(
+                                ui,
+                                &inspected.modified_request.replace("\\r\\n", "\r"),
+                                inspected.ssl,
+                                &inspected.target,
+                            );
                         }
                         ui.separator();
                         if ui.button("✉ Send").clicked() {
@@ -278,12 +286,34 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             let request = inspected.modified_request.replace("\\r\\n", "\r");
                             let method = request.split(' ').take(1).collect::<String>();
                             let uri = request.split(' ').skip(1).take(1).collect::<String>();
-                            let url = format!("{}://{}{}", if inspected.ssl { "https" } else { "http" }, inspected.target, uri);
-                            let body = request.split("\r\n\r\n").skip(1).take(1).collect::<String>().as_bytes().to_vec();
+                            let url = format!(
+                                "{}://{}{}",
+                                if inspected.ssl { "https" } else { "http" },
+                                inspected.target,
+                                uri
+                            );
+                            let body = request
+                                .split("\r\n\r\n")
+                                .skip(1)
+                                .take(1)
+                                .collect::<String>()
+                                .as_bytes()
+                                .to_vec();
                             let mut headers = HeaderMap::new();
-                            for header in request.split("\r\n").skip(1).map_while(|x| if !x.is_empty() { Some(x) } else { None }).collect::<Vec<&str>>() {
-                                let name = reqwest::header::HeaderName::from_bytes(header.split(": ").take(1).collect::<String>().as_bytes()).unwrap();
-                                let value = reqwest::header::HeaderValue::from_bytes(header.split(": ").skip(1).collect::<String>().as_bytes()).unwrap();
+                            for header in request
+                                .split("\r\n")
+                                .skip(1)
+                                .map_while(|x| if !x.is_empty() { Some(x) } else { None })
+                                .collect::<Vec<&str>>()
+                            {
+                                let name = reqwest::header::HeaderName::from_bytes(
+                                    header.split(": ").take(1).collect::<String>().as_bytes(),
+                                )
+                                .unwrap();
+                                let value = reqwest::header::HeaderValue::from_bytes(
+                                    header.split(": ").skip(1).collect::<String>().as_bytes(),
+                                )
+                                .unwrap();
                                 headers.insert(name, value);
                             }
 
@@ -297,14 +327,29 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                         .build()
                                         .unwrap();
 
-                                    cli.request(reqwest::Method::from_bytes(method.as_bytes()).unwrap(), url)
-                                        .body(body)
-                                        .send()
-                                        .map(move |r| {
-                                            let headers: String = r.headers().iter().map(|(key, value)| format!("{}: {}\r\n", key, value.to_str().unwrap())).collect();
-                                            format!("{:?} {} {}\r\n{}\r\n{}", r.version(), r.status().as_str(), r.status().canonical_reason().unwrap(), headers, r.text().unwrap())
-
-                                        })
+                                    cli.request(
+                                        reqwest::Method::from_bytes(method.as_bytes()).unwrap(),
+                                        url,
+                                    )
+                                    .body(body)
+                                    .send()
+                                    .map(move |r| {
+                                        let headers: String = r
+                                            .headers()
+                                            .iter()
+                                            .map(|(key, value)| {
+                                                format!("{}: {}\r\n", key, value.to_str().unwrap())
+                                            })
+                                            .collect();
+                                        format!(
+                                            "{:?} {} {}\r\n{}\r\n{}",
+                                            r.version(),
+                                            r.status().as_str(),
+                                            r.status().canonical_reason().unwrap(),
+                                            headers,
+                                            r.text().unwrap()
+                                        )
+                                    })
                                 })
                             });
 
@@ -315,7 +360,6 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             }
                         }
                         ui.separator();
-
                     });
                     if let Some(p) = &inspected.response_promise {
                         if let Some(Ok(s)) = p.ready() {
@@ -328,12 +372,15 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                     code_edit_ui(ui, &mut inspected.modified_request);
                     ui.separator();
                     code_view_ui(ui, &inspected.new_response);
-                },
+                }
                 ActiveInspectorMenu::Default => {
                     egui::menu::bar(ui, |ui| {
                         if ui.button("☰ Save Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(path, &inspected.request.replace("\r\n", "\r"));
+                                save_content_to_file(
+                                    path,
+                                    &inspected.request.replace("\r\n", "\r"),
+                                );
                             }
                         }
                         ui.separator();
@@ -341,7 +388,7 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
                                 save_content_to_file(
                                     path,
-                                    &serde_json::to_string(&inspected).unwrap()
+                                    &serde_json::to_string(&inspected).unwrap(),
                                 );
                             }
                         }
@@ -355,30 +402,53 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                     code_view_ui(ui, &inspected.request);
                     ui.separator();
                     code_view_ui(ui, &inspected.response);
-                },
+                }
                 ActiveInspectorMenu::Intruder => {
                     egui::menu::bar(ui, |ui| {
                         if ui.button("⚠ Reset").clicked() {
-                            inspected.bf_request = inspected.request.to_string().replace('\r', "\\r\\n");
+                            inspected.bf_request =
+                                inspected.request.to_string().replace('\r', "\\r\\n");
                         }
                         ui.separator();
                         if ui.button("☰ Save Modified Request").clicked() {
                             if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(path, &inspected.modified_request.replace("\\r\\n", "\r"));
+                                save_content_to_file(
+                                    path,
+                                    &inspected.modified_request.replace("\\r\\n", "\r"),
+                                );
                             }
                         }
                         ui.separator();
                         if ui.button("✉ Send").clicked() {
                             /* Actually start bruteforcing */
-                            let requests: Vec<String> = inspected.bf_payload.iter().map(|p| inspected.bf_request.replace("\\r\\n", "\r").replace("$[PAYLOAD]$", p)).collect();
-                            inspected.bf_payload_prepared = batch_req::Request::from_strings(requests, inspected.ssl, inspected.target.to_string());
-                            batch_req::BatchRequest::run(&inspected.bf_payload_prepared, &mut inspected.bf_promises);
+                            let requests: Vec<String> = inspected
+                                .bf_payload
+                                .iter()
+                                .map(|p| {
+                                    inspected
+                                        .bf_request
+                                        .replace("\\r\\n", "\r")
+                                        .replace("$[PAYLOAD]$", p)
+                                })
+                                .collect();
+                            inspected.bf_payload_prepared = batch_req::Request::from_strings(
+                                requests,
+                                inspected.ssl,
+                                inspected.target.to_string(),
+                            );
+                            batch_req::BatchRequest::run(
+                                &inspected.bf_payload_prepared,
+                                &mut inspected.bf_promises,
+                            );
                         }
                         ui.separator();
                         if ui.button("☰ Load Payloads from File").clicked() {
                             if let Some(path) = rfd::FileDialog::new().pick_file() {
                                 if let Some(payload) = load_content_from_file(path) {
-                                    inspected.bf_payload = payload.split('\n').map(|v| v.trim_end().to_string()).collect::<Vec<String>>();
+                                    inspected.bf_payload = payload
+                                        .split('\n')
+                                        .map(|v| v.trim_end().to_string())
+                                        .collect::<Vec<String>>();
                                 }
                             }
                         }
@@ -496,11 +566,24 @@ impl History {
         tbl_dyn_col!(
             ui,
             |mut body| {
-                let range = paginate!(self.current_page, self.items_per_page, self.history.len(), self.filter);
+                let range = paginate!(
+                    self.current_page,
+                    self.items_per_page,
+                    self.history.len(),
+                    self.filter
+                );
                 for item in &self.history[range] {
                     if filter!(item.host, &self.filter) {
-                        let uri = if item.uri.len() > 50 { format!("{}[...]", &item.uri[..50]) } else { item.uri.to_owned() };
-                        let host = if item.host.len() > 11 { item.host[..11].to_string()} else {item.host.to_owned()};
+                        let uri = if item.uri.len() > 50 {
+                            format!("{}[...]", &item.uri[..50])
+                        } else {
+                            item.uri.to_owned()
+                        };
+                        let host = if item.host.len() > 11 {
+                            item.host[..11].to_string()
+                        } else {
+                            item.host.to_owned()
+                        };
                         body.row(text_height, |mut row| {
                             row!(
                                 row,
@@ -518,7 +601,10 @@ impl History {
                                         id: item.id,
                                         request: item.raw.to_string(),
                                         response: item.response.to_string(),
-                                        modified_request: item.raw.to_string().replace('\r', "\\r\\n"),
+                                        modified_request: item
+                                            .raw
+                                            .to_string()
+                                            .replace('\r', "\\r\\n"),
                                         new_response: item.response.to_string(),
                                         target: item.host.to_string(),
                                         bf_request: item.raw.to_string().replace('\r', "\\r\\n"),
@@ -530,7 +616,6 @@ impl History {
                             });
                         })
                     }
-                    
                 }
             },
             self.current_page,
@@ -571,7 +656,6 @@ impl History {
             });
             match self.is_remote {
                 true => {
-
                     let promise = self.response_promise.get_or_insert_with(|| {
                         let last_id = self.last_id;
                         let url = format!("{}:8443", self.api_addr.clone().unwrap());
@@ -579,7 +663,6 @@ impl History {
                         Promise::spawn_thread("api", move || {
                             apiutils::get_new_from_last_id(last_id, &url, &secret)
                         })
-                        
                     });
 
                     if let Some(p) = promise.ready() {
@@ -598,10 +681,8 @@ impl History {
                         } else {
                             self.response_promise = None;
                         }
-                        
                     }
-                    
-                },
+                }
                 false => {
                     if let Some(rows) = dbutils::get_new_from_last_id(self.last_id, path) {
                         for row in rows {
@@ -613,9 +694,8 @@ impl History {
                             self.history.insert(0, row);
                         }
                     }
-                },
+                }
             }
-            
 
             if !self.is_minimized {
                 egui::ScrollArea::both()

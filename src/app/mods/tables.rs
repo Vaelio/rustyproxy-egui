@@ -83,5 +83,5 @@ macro_rules! row {
 macro_rules! filter {
     ($item: expr, $filter: expr) => {
         $filter.is_none() || $filter.is_some() && $item.contains::<&str>($filter.as_ref().unwrap())
-    }
+    };
 }
