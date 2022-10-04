@@ -10,18 +10,23 @@ pub trait Component {
 
     fn set_api_secret(&mut self, _: Option<String>) {}
 
-    fn get_api_secret(&self) -> Option<String> { None }
+    fn get_api_secret(&self) -> Option<String> {
+        None
+    }
 
     fn set_is_remote(&mut self, _: bool) {}
 
-    fn get_is_remote(&self) -> bool { false }
+    fn get_is_remote(&self) -> bool {
+        false
+    }
 
     fn set_api_addr(&mut self, _: Option<String>) {}
 
-    fn get_api_addr(&self) -> Option<String> { None }
+    fn get_api_addr(&self) -> Option<String> {
+        None
+    }
 }
 
 pub trait View {
     fn ui(&mut self, ui: &mut egui::Ui, path: &mut Option<String>);
-
 }

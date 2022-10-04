@@ -115,7 +115,11 @@ impl eframe::App for TemplateApp {
                 self.components.open("History", true);
                 self.components.windows(ctx, &mut self.picked_path);
             } else if let Some(p) = self.components.get_component_by_name("Proxy") {
-                p.show(ui.ctx(), &mut self.picked_path.is_some(), &mut self.picked_path);
+                p.show(
+                    ui.ctx(),
+                    &mut self.picked_path.is_some(),
+                    &mut self.picked_path,
+                );
                 let is_remote = p.get_is_remote();
                 let api_secret = p.get_api_secret();
                 let api_addr = p.get_api_addr();
@@ -124,9 +128,7 @@ impl eframe::App for TemplateApp {
                     self.api_addr = api_addr;
                 }
             }
-            
-            
-            
+
             /* check wether or not there's an inspector open or not */
             egui::warn_if_debug_build(ui);
         });

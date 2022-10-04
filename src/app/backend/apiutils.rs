@@ -1,17 +1,22 @@
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use crate::app::backend::dbutils;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
-pub fn get_new_from_last_id(last_id: usize, url: &str, secret: &str) -> Result<String, reqwest::Error> {
+pub fn get_new_from_last_id(
+    last_id: usize,
+    url: &str,
+    secret: &str,
+) -> Result<String, reqwest::Error> {
     let mut headers = HeaderMap::new();
     headers.insert(
         HeaderName::from_bytes(b"Authentication").unwrap(),
-        HeaderValue::from_bytes(format!("Bearer {}", secret).as_bytes()).unwrap()
+        HeaderValue::from_bytes(format!("Bearer {}", secret).as_bytes()).unwrap(),
     );
     let cli = reqwest::blocking::Client::builder()
         .danger_accept_invalid_certs(true)
         .default_headers(headers)
         .build()?;
-    let r = cli.get(format!("https://{}/api/requests/{}", url, last_id))
+    let r = cli
+        .get(format!("https://{}/api/requests/{}", url, last_id))
         .send();
 
     match r {
