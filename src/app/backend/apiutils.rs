@@ -12,8 +12,14 @@ pub fn get_new_from_last_id(
         HeaderName::from_bytes(b"Authentication").unwrap(),
         HeaderValue::from_bytes(format!("Bearer {}", secret).as_bytes()).unwrap(),
     );
+    #[cfg(not(target_arch = "wasm32"))]
     let cli = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
+        .default_headers(headers)
+        .build()?;
+
+    #[cfg(target_arch = "wasm32")]
+    let cli = reqwest::Client::builder()
         .default_headers(headers)
         .build()?;
 
