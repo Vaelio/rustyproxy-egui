@@ -666,32 +666,19 @@ impl History {
             });
             match self.is_remote {
                 true => {
-                    let promise = self.response_promise.get_or_insert_with(|| {
-                        let last_id = self.last_id;
-                        let url = format!("{}:8443", self.api_addr.clone().unwrap());
-                        let secret = self.api_secret.clone().unwrap();
-                        Promise::spawn_thread("api", move || {
-                            apiutils::get_new_from_last_id(last_id, &url, &secret)
-                        })
-                    });
-
-                    if let Some(p) = promise.ready() {
-                        if let Ok(s) = p {
-                            let rows = apiutils::parse_result(s.to_string());
-                            for row in rows {
-                                self.last_id = if row.id > self.last_id {
-                                    row.id
-                                } else {
-                                    self.last_id
-                                };
-                                self.history.insert(0, row);
-                            }
-                            self.response_promise = None;
-                            ui.ctx().request_repaint();
+                    let last_id = self.last_id;
+                    let url = format!("{}:8443", self.api_addr.clone().unwrap());
+                    let secret = self.api_secret.clone().unwrap();
+                    let b = apiutils::get_new_from_last_id(last_id, &url, &secret);
+                    for row in apiutils::parse_result(b.unwrap().to_string()) {
+                        self.last_id = if row.id > self.last_id {
+                            row.id
                         } else {
-                            self.response_promise = None;
-                        }
+                            self.last_id
+                        };
+                        self.history.insert(0, row);
                     }
+                    ui.ctx().request_repaint();
                 }
                 false => {
                     #[cfg(not(target_arch = "wasm32"))]
