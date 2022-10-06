@@ -1,4 +1,5 @@
 use crate::app::backend::dbutils;
+use crate::app::backend::requestor;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
 pub fn get_new_from_last_id(
@@ -11,21 +12,17 @@ pub fn get_new_from_last_id(
         HeaderName::from_bytes(b"Authentication").unwrap(),
         HeaderValue::from_bytes(format!("Bearer {}", secret).as_bytes()).unwrap(),
     );
-    let cli = reqwest::blocking::Client::builder()
+    let cli = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .default_headers(headers)
         .build()?;
-    let r = cli
-        .get(format!("https://{}/api/requests/{}", url, last_id))
-        .send();
 
-    match r {
-        Ok(r) => r.text(),
-        Err(e) => {
-            println!("{}", e);
-            Err(e)
-        }
-    }
+    let r = cli.request(reqwest::Method::from_bytes(b"GET").unwrap(), format!("https://{}/api/requests/{}", url, last_id))
+        .build()?;
+    
+    let rx = requestor::exec_req_body(cli, r);
+
+    Ok(rx.recv().unwrap())
 }
 
 pub fn parse_result(s: String) -> Vec<dbutils::HistLine> {
