@@ -84,6 +84,7 @@ impl Default for ActiveInspectorMenu {
 #[derive(Default)]
 struct Inspector {
     id: usize,
+    source: String,
     request: String,
     response: String,
     modified_request: String,
@@ -233,9 +234,8 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 if ui.button(bt).clicked() {
                     inspected.is_minimized = !inspected.is_minimized;
                     ui.ctx().request_repaint();
-                }
-                ui.separator();
-                ui.label(&inspected.target);
+                }ui.separator();
+                ui.label(format!("{} <-> {}", &inspected.source, &inspected.target));
                 ui.label("💻 ");
                 ui.separator();
                 if inspected.ssl {
@@ -530,6 +530,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
 
                                     let ins = Inspector {
                                         id: *idx,
+                                        source:"".to_string(),
                                         request: request.to_string(),
                                         response: response.to_string(),
                                         modified_request: request.replace('\r', "\\r\\n"),
@@ -588,6 +589,7 @@ impl History {
                             row!(
                                 row,
                                 item.id.to_string(),
+                                item.remote_addr.to_string(),
                                 item.method.to_owned(),
                                 uri,
                                 host,
@@ -599,6 +601,7 @@ impl History {
                                 if ui.button("🔍").clicked() {
                                     let i = Inspector {
                                         id: item.id,
+                                        source: item.remote_addr.to_string(),
                                         request: item.raw.to_string(),
                                         response: item.response.to_string(),
                                         modified_request: item
@@ -624,8 +627,9 @@ impl History {
             self.filter,
             &mut self.filter_input,
             Size::exact(40.0),
+            Size::exact(120.0),
             Size::exact(80.0),
-            Size::exact(400.0),
+            Size::exact(360.0),
             Size::exact(100.0),
             Size::exact(60.0),
             Size::exact(70.0),
