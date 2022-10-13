@@ -17,6 +17,7 @@ pub fn is_valid_project_path(fpath: &String) -> bool {
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct HistLine {
     pub id: usize,
+    pub remote_addr: String,
     pub uri: String,
     pub method: String,
     pub params: bool,
@@ -40,17 +41,18 @@ pub fn get_new_from_last_id(last_id: usize, path: &str) -> Option<Vec<HistLine>>
             .query_map([last_id], |row| {
                 Ok(HistLine {
                     id: row.get(0).unwrap(),
-                    uri: row.get(1).unwrap(),
-                    method: row.get(2).unwrap(),
-                    size: row.get(5).unwrap(),
-                    params: matches!(row.get(3).unwrap(), 1),
-                    status: row.get(4).unwrap(),
-                    raw: row.get(6).unwrap(),
-                    ssl: row.get(7).unwrap(),
-                    response: row.get(8).unwrap(),
-                    response_time: row.get(9).unwrap(),
+                    remote_addr: row.get(1).unwrap(),
+                    uri: row.get(2).unwrap(),
+                    method: row.get(3).unwrap(),
+                    size: row.get(6).unwrap(),
+                    params: matches!(row.get(4).unwrap(), 1),
+                    status: row.get(5).unwrap(),
+                    raw: row.get(7).unwrap(),
+                    ssl: row.get(8).unwrap(),
+                    response: row.get(9).unwrap(),
+                    response_time: row.get(10).unwrap(),
                     host: row
-                        .get::<usize, String>(6)
+                        .get::<usize, String>(7)
                         .unwrap()
                         .split("ost: ")
                         .skip(1)
