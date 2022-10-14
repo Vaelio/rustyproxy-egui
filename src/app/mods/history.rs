@@ -637,12 +637,12 @@ impl History {
             Size::exact(40.0),
             Size::exact(120.0),
             Size::exact(80.0),
-            Size::exact(360.0),
+            Size::exact(320.0),
             Size::exact(100.0),
             Size::exact(60.0),
             Size::exact(70.0),
             Size::exact(90.0),
-            Size::exact(60.0)
+            Size::exact(40.0)
         );
     }
 
