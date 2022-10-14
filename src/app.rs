@@ -22,6 +22,9 @@ pub struct TemplateApp {
     api_addr: Option<String>,
 
     #[serde(skip)]
+    api_port: Option<usize>,
+
+    #[serde(skip)]
     api_secret: Option<String>,
 }
 
@@ -32,6 +35,7 @@ impl Default for TemplateApp {
             picked_path: None,
             components: Components::default(),
             api_addr: None,
+            api_port: None,
             api_secret: None,
         }
     }
@@ -106,10 +110,11 @@ impl eframe::App for TemplateApp {
             show basic project window
             */
             if self.picked_path.is_some() {
-                if self.api_addr.is_some() && self.api_secret.is_some() {
+                if self.api_addr.is_some() && self.api_secret.is_some() && self.api_port.is_some() {
                     let h = self.components.get_component_by_name("History").unwrap();
                     h.set_is_remote(true);
                     h.set_api_addr(self.api_addr.clone());
+                    h.set_api_port(self.api_port.clone());
                     h.set_api_secret(self.api_secret.clone());
                 }
                 self.components.open("History", true);
@@ -123,9 +128,11 @@ impl eframe::App for TemplateApp {
                 let is_remote = p.get_is_remote();
                 let api_secret = p.get_api_secret();
                 let api_addr = p.get_api_addr();
+                let api_port = p.get_api_port();
                 if is_remote {
                     self.api_secret = api_secret;
                     self.api_addr = api_addr;
+                    self.api_port = api_port;
                 }
             }
 

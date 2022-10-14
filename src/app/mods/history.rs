@@ -43,6 +43,9 @@ pub struct History {
     api_addr: Option<String>,
 
     #[serde(skip)]
+    api_port: Option<usize>,
+
+    #[serde(skip)]
     response_promise: Option<Promise<Result<String, reqwest::Error>>>,
 }
 
@@ -61,6 +64,7 @@ impl Default for History {
             is_remote: false,
             response_promise: None,
             api_addr: None,
+            api_port: None,
             api_secret: None,
         }
     }
@@ -176,6 +180,10 @@ impl super::Component for History {
 
     fn set_api_addr(&mut self, a: Option<String>) {
         self.api_addr = a;
+    }
+
+    fn set_api_port(&mut self, p: Option<usize>) {
+        self.api_port = p;
     }
 
     fn set_api_secret(&mut self, s: Option<String>) {
@@ -662,7 +670,7 @@ impl History {
                 true => {
                     let promise = self.response_promise.get_or_insert_with(|| {
                         let last_id = self.last_id;
-                        let url = format!("{}:8443", self.api_addr.clone().unwrap());
+                        let url = format!("{}:{}", self.api_addr.clone().unwrap(), self.api_port.clone().unwrap());
                         let secret = self.api_secret.clone().unwrap();
                         Promise::spawn_thread("api", move || {
                             apiutils::get_new_from_last_id(last_id, &url, &secret)

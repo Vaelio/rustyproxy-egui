@@ -10,6 +10,8 @@ pub struct Proxy {
     secret: Option<String>,
     api_addr_input: String,
     api_addr: Option<String>,
+    api_port_input: String,
+    api_port: Option<usize>,
     is_remote: bool,
 }
 
@@ -22,6 +24,8 @@ impl Default for Proxy {
             secret: None,
             api_addr_input: String::new(),
             api_addr: None,
+            api_port_input: String::new(),
+            api_port: None,
             is_remote: false,
         }
     }
@@ -51,6 +55,10 @@ impl super::Component for Proxy {
 
     fn get_api_addr(&self) -> Option<String> {
         self.api_addr.clone()
+    }
+
+    fn get_api_port(&self) -> Option<usize> {
+        self.api_port.clone()
     }
 
     fn get_is_remote(&self) -> bool {
@@ -96,6 +104,10 @@ impl super::View for Proxy {
                         ui.text_edit_singleline(&mut self.api_addr_input);
                     });
                     ui.horizontal(|ui| {
+                        ui.label("Api port:");
+                        ui.text_edit_singleline(&mut self.api_port_input);
+                    });
+                    ui.horizontal(|ui| {
                         ui.label("Api Secret:");
                         ui.text_edit_singleline(&mut self.secret_input);
                     });
@@ -109,6 +121,10 @@ impl super::View for Proxy {
                             }
                             if !self.api_addr_input.is_empty() {
                                 self.api_addr = Some(self.api_addr_input.to_owned());
+                            }
+                            if !self.api_port_input.is_empty() {
+                                let port: usize = self.api_port_input.parse().unwrap();
+                                self.api_port = Some(port);
                             }
                             self.is_open = false;
                         }

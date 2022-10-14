@@ -20,6 +20,12 @@ pub trait Component {
         false
     }
 
+    fn set_api_port(&mut self, _: Option<usize>) {}
+
+    fn get_api_port(&self) -> Option<usize> {
+        None
+    }
+
     fn set_api_addr(&mut self, _: Option<String>) {}
 
     fn get_api_addr(&self) -> Option<String> {
