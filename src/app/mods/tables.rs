@@ -11,16 +11,18 @@ macro_rules! tbl_dyn_col {
             .body($closure);
         $ui.separator();
         egui::menu::bar($ui, |ui| {
-            let lbl = format!("Current page: {}", $current_page);
-            ui.label(lbl);
-            ui.label("⬌ Items per page: ");
-            ui.add(
-                egui::Slider::new(
-                    &mut $items_per_page,
-                    (10 as usize)..=($items_number),
-                )
-                .logarithmic(true),
-            );
+            if $items_number > $items_per_page {
+                let lbl = format!("Current page: {}", $current_page);
+                ui.label(lbl);
+                ui.label("⬌ Items per page: ");
+                ui.add(
+                    egui::Slider::new(
+                        &mut $items_per_page,
+                        (10 as usize)..=($items_number),
+                    )
+                    .logarithmic(true),
+                );
+            }
             ui.label("Filter by host: ");
             let response = ui.text_edit_singleline($filter_input);
             if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
