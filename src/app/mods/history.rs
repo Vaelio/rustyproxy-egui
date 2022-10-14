@@ -522,12 +522,35 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         body.row(text_height, |mut row| {
                             row!(
                                 row,
+                                {
+                                    let request =
+                                        inspected.bf_request.replace("$[PAYLOAD]$", &payload);
+                                    let response = format!(
+                                        "{} {}\r\n{}\r\n{}",
+                                        version, status, headers, text
+                                    );
+
+                                    let ins = Inspector {
+                                        id: *idx,
+                                        source: "".to_string(),
+                                        request: request.to_string(),
+                                        response: response.to_string(),
+                                        modified_request: request.replace('\r', "\\r\\n"),
+                                        new_response: response,
+                                        ssl: inspected.ssl,
+                                        target: inspected.target.to_string(),
+                                        is_active: true,
+                                        bf_request: request.to_string().replace('\r', "\\r\\n"),
+                                        ..Default::default()
+                                    };
+                                    inspected.childs.push(ins);
+                                },
                                 idx.to_string(),
                                 &payload,
                                 text.len().to_string(),
                                 status
                             );
-
+                            /*
                             row.col(|ui| {
                                 if ui.button("🔍").clicked() {
                                     let request =
@@ -552,7 +575,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                     };
                                     inspected.childs.push(ins);
                                 }
-                            });
+                            });*/
                         });
                     }
                 },
@@ -564,8 +587,8 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 Size::exact(60.0),
                 Size::exact(400.0),
                 Size::exact(60.0),
-                Size::exact(60.0),
                 Size::exact(60.0)
+                //Size::exact(60.0)
             );
         });
 }
@@ -597,6 +620,24 @@ impl History {
                         body.row(text_height, |mut row| {
                             row!(
                                 row,
+                                {
+                                    let i = Inspector {
+                                        id: item.id,
+                                        source: item.remote_addr.to_string(),
+                                        request: item.raw.to_string(),
+                                        response: item.response.to_string(),
+                                        modified_request: item
+                                            .raw
+                                            .to_string()
+                                            .replace('\r', "\\r\\n"),
+                                        new_response: item.response.to_string(),
+                                        target: item.host.to_string(),
+                                        bf_request: item.raw.to_string().replace('\r', "\\r\\n"),
+                                        is_active: true,
+                                        ..Default::default()
+                                    };
+                                    self.inspectors.push(i);
+                                },
                                 item.id.to_string(),
                                 item.remote_addr.to_string(),
                                 item.method.to_owned(),
@@ -606,6 +647,7 @@ impl History {
                                 item.status.to_string(),
                                 item.response_time.to_owned()
                             );
+                            /*
                             row.col(|ui| {
                                 if ui.button("🔍").clicked() {
                                     let i = Inspector {
@@ -625,7 +667,7 @@ impl History {
                                     };
                                     self.inspectors.push(i);
                                 }
-                            });
+                            });*/
                         })
                     }
                 }
@@ -642,8 +684,8 @@ impl History {
             Size::exact(100.0),
             Size::exact(60.0),
             Size::exact(70.0),
-            Size::exact(90.0),
-            Size::exact(40.0)
+            Size::exact(90.0)
+            //Size::exact(40.0)
         );
     }
 

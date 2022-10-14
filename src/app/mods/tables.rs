@@ -72,10 +72,12 @@ macro_rules! paginate {
 
 #[macro_export]
 macro_rules! row {
-    ($row: ident, $($cols:expr ),*) => {
+    ($row: ident, $closure: expr, $($cols:expr ),*) => {
         $(
             $row.col(|ui|{
-                ui.add(egui::Label::new($cols).wrap(true));
+                if ui.add(egui::Label::new($cols).wrap(true).sense(egui::Sense::click())).clicked() {
+                    $closure;
+                }
             });
         )*
     }
