@@ -242,7 +242,8 @@ fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 if ui.button(bt).clicked() {
                     inspected.is_minimized = !inspected.is_minimized;
                     ui.ctx().request_repaint();
-                }ui.separator();
+                }
+                ui.separator();
                 ui.label(format!("{} <-> {}", &inspected.source, &inspected.target));
                 ui.label("💻 ");
                 ui.separator();
@@ -538,7 +539,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
 
                                     let ins = Inspector {
                                         id: *idx,
-                                        source:"".to_string(),
+                                        source: "".to_string(),
                                         request: request.to_string(),
                                         response: response.to_string(),
                                         modified_request: request.replace('\r', "\\r\\n"),
@@ -670,7 +671,11 @@ impl History {
                 true => {
                     let promise = self.response_promise.get_or_insert_with(|| {
                         let last_id = self.last_id;
-                        let url = format!("{}:{}", self.api_addr.clone().unwrap(), self.api_port.clone().unwrap());
+                        let url = format!(
+                            "{}:{}",
+                            self.api_addr.clone().unwrap(),
+                            self.api_port.clone().unwrap()
+                        );
                         let secret = self.api_secret.clone().unwrap();
                         Promise::spawn_thread("api", move || {
                             apiutils::get_new_from_last_id(last_id, &url, &secret)
