@@ -48,7 +48,7 @@ pub fn get_new_from_last_id(last_id: usize, path: &str) -> Option<Vec<HistLine>>
                     params: matches!(row.get(4).unwrap(), 1),
                     status: row.get(5).unwrap(),
                     raw: row.get(7).unwrap(),
-                    ssl: row.get(8).unwrap(),
+                    ssl: matches!(row.get(8).unwrap(), 1),
                     response: row.get(9).unwrap(),
                     response_time: row.get(10).unwrap(),
                     host: row
