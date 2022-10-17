@@ -634,6 +634,7 @@ impl History {
                                         target: item.host.to_string(),
                                         bf_request: item.raw.to_string().replace('\r', "\\r\\n"),
                                         is_active: true,
+                                        ssl: item.ssl,
                                         ..Default::default()
                                     };
                                     self.inspectors.push(i);
