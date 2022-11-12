@@ -16,18 +16,64 @@ pub fn is_valid_project_path(fpath: &String) -> bool {
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct HistLine {
-    pub id: usize,
-    pub remote_addr: String,
-    pub uri: String,
-    pub method: String,
-    pub params: bool,
-    pub status: usize,
-    pub size: usize,
-    pub raw: String,
-    pub ssl: bool,
-    pub response: String,
-    pub response_time: String,
-    pub host: String,
+    id: usize,
+    remote_addr: String,
+    uri: String,
+    method: String,
+    params: bool,
+    status: usize,
+    size: usize,
+    raw: String,
+    ssl: bool,
+    response: String,
+    response_time: String,
+    host: String,
+}
+
+impl HistLine {
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
+    pub fn remote_addr(&self) -> &String {
+        &self.remote_addr
+    }
+
+    pub fn uri(&self) -> &String {
+        &self.uri
+    }
+
+    pub fn method(&self) -> &String {
+        &self.method
+    }
+
+    pub fn status(&self) -> usize {
+        self.status
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    pub fn raw(&self) -> &String {
+        &self.raw
+    }
+
+    pub fn ssl(&self) -> bool {
+        self.ssl
+    }
+
+    pub fn response(&self) -> &String {
+        &self.response
+    }
+
+    pub fn response_time(&self) -> &String {
+        &self.response_time
+    }
+
+    pub fn host(&self) -> &String {
+        &self.host
+    }
 }
 
 pub fn get_new_from_last_id(last_id: usize, path: &str) -> Option<Vec<HistLine>> {
