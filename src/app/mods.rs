@@ -3,6 +3,7 @@ pub mod history;
 pub mod proxy;
 pub mod tables;
 pub mod inspector;
+pub mod filter_cat;
 
 pub trait Component {
     fn name(&self) -> &'static str;
