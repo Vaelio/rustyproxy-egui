@@ -2,6 +2,7 @@ use super::components::W;
 use crate::app::backend::apiutils;
 use crate::app::backend::dbutils;
 use crate::app::mods::inspector::{Inspector, inspect};
+use crate::app::mods::filter_cat::FilterCat;
 use crate::{filter, paginate, row, tbl_dyn_col};
 use egui_extras::{Size, TableBuilder};
 use poll_promise::Promise;
@@ -28,6 +29,9 @@ pub struct History {
     filter: Option<String>,
 
     filter_input: String,
+
+    #[serde(skip)]
+    filter_cat: Option<FilterCat>,
 
     is_remote: bool,
 
@@ -56,6 +60,7 @@ impl Default for History {
             items_per_page: 10,
             filter: None,
             filter_input: String::new(),
+            filter_cat: None,
             is_remote: false,
             response_promise: None,
             api_addr: None,
@@ -152,7 +157,7 @@ impl History {
                     self.filter
                 );
                 for item in &self.history[range] {
-                    if filter!(item.host(), &self.filter) {
+                    if filter!(item, &self.filter, &self.filter_cat) {
                         let uri = if item.uri().len() > 50 {
                             format!("{}[...]", &item.uri()[..50])
                         } else {
@@ -223,6 +228,7 @@ impl History {
             self.items_per_page,
             self.history.len(),
             self.filter,
+            self.filter_cat,
             &mut self.filter_input,
             Size::exact(40.0),
             Size::exact(120.0),
