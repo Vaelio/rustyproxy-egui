@@ -113,7 +113,7 @@ impl super::View for Proxy {
                     });
                     ui.horizontal(|ui| {
                         /* connect */
-                        if ui.button("Connect").clicked() {
+                        if ui.button("Connect").clicked() || ui.input().key_pressed(egui::Key::Enter){
                             let _ = path.insert("Remote Project".to_string());
                             self.is_remote = true;
                             if !self.secret_input.is_empty() {
