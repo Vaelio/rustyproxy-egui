@@ -1,5 +1,6 @@
 use crate::app::backend::batch_req;
 use crate::app::backend::dbutils::HistLine;
+use crate::app::mods::filter_cat::FilterCat;
 use poll_promise::Promise;
 use std::path::PathBuf;
 use std::fs::File;
@@ -57,6 +58,8 @@ pub struct Inspector {
     pub bf_filter_input: String,
     #[serde(skip)]
     pub bf_filter: Option<String>,
+    #[serde(skip)]
+    pub bf_filter_cat: Option<FilterCat>,
 }
 
 
@@ -420,6 +423,7 @@ macro_rules! tbl_ui_bf {
                 $inspected.bf_items_per_page,
                 $inspected.bf_results.len(),
                 $inspected.bf_filter,
+                $inspected.bf_filter_cat,
                 &mut $inspected.bf_filter_input,
                 Size::exact(60.0),
                 Size::exact(400.0),

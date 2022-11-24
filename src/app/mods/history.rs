@@ -1,4 +1,5 @@
 use crate::app::backend::dbutils;
+use crate::app::mods::filter_cat::FilterCat;
 use poll_promise::Promise;
 
 
@@ -21,6 +22,9 @@ pub struct History {
     pub filter_input: String,
 
     #[serde(skip)]
+    pub filter_cat: Option<FilterCat>,
+
+    #[serde(skip)]
     pub selected: Option<dbutils::HistLine>,
 
     #[serde(skip)]
@@ -37,6 +41,7 @@ impl Clone for History {
             items_per_page: self.items_per_page,
             filter: self.filter.clone(),
             filter_input: self.filter_input.clone(),
+            filter_cat: FilterCat::from_filtercat_opt(&self.filter_cat),
             selected: None,
             response_promise: None,
         }
@@ -55,6 +60,7 @@ impl Default for History {
             filter_input: String::new(),
             response_promise: None,
             selected: None,
+            filter_cat: None,
         }
     }
 }
@@ -145,8 +151,9 @@ macro_rules! history_ui {
                         &$history.filter
                     );
                     let mut selected = None;
+                    let filter = FilterCat::from_filtercat_opt(&$history.filter_cat);
                     for item in &$history.history().clone()[range] {
-                        if filter!(item.host(), &$history.filter) {
+                        if filter!(item, &$history.filter, &filter) {
                             let uri = if item.uri().len() > 50 {
                                 format!("{}[...]", &item.uri()[..50])
                             } else {
@@ -184,6 +191,7 @@ macro_rules! history_ui {
                 $history.items_per_page,
                 len,
                 $history.filter,
+                $history.filter_cat,
                 &mut $history.filter_input,
                 Size::exact(40.0),
                 Size::exact(120.0),

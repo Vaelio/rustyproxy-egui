@@ -7,6 +7,7 @@ use crate::{proxy_ui, history_ui, inspector_ui};
 use crate::app::backend::apiutils;
 use crate::{filter, paginate, row, tbl_dyn_col, tbl_ui_bf};
 use crate::app::backend::batch_req;
+use crate::app::mods::filter_cat::FilterCat;
 use reqwest::header::HeaderMap;
 
 
