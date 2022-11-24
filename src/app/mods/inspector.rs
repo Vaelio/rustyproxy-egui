@@ -353,8 +353,6 @@ macro_rules! inspector_ui {
 macro_rules! tbl_ui_bf {
     ($ui: expr, $w: expr, $inspected: expr) => {
         egui::ScrollArea::both()
-        .max_width(1000.0)
-        .max_height(400.0)
         .show($ui, |ui| {
             let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
             tbl_dyn_col!(
