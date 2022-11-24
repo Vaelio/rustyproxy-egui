@@ -1,6 +1,6 @@
 #[macro_export]
 macro_rules! tbl_dyn_col {
-    ( $ui: expr, $closure: expr, $current_page: expr, $items_per_page: expr, $items_number: expr, $filter: expr, $filter_input: expr, $($cols:expr ),*) => {
+    ( $ui: expr, $closure: expr, $current_page: expr, $items_per_page: expr, $items_number: expr, $filter: expr, $filter_cat: expr, $filter_input: expr, $($cols:expr ),*) => {
         TableBuilder::new($ui)
             .striped(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
@@ -23,7 +23,27 @@ macro_rules! tbl_dyn_col {
                     .logarithmic(true),
                 );
             }
-            ui.label("Filter by host: ");
+            let menu = if $filter_cat.is_some(){
+                format!("Filter by: {:?}", $filter_cat.as_ref().unwrap())
+            }
+            else {
+                "Filter by".into()
+            };
+            ui.menu_button(menu, |ui| {
+                if ui.button("Host").clicked() {
+                    $filter_cat = Some(FilterCat::Host);
+                }
+                if ui.button("Code").clicked() {
+                    $filter_cat = Some(FilterCat::Code);
+                }
+                if ui.button("Source").clicked() {
+                    $filter_cat = Some(FilterCat::Source);
+                }
+                if ui.button("Path").clicked() {
+                    $filter_cat = Some(FilterCat::Path);
+                }
+            });
+
             let response = ui.text_edit_singleline($filter_input);
             if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
                 if $filter_input != "" {
@@ -85,7 +105,14 @@ macro_rules! row {
 
 #[macro_export]
 macro_rules! filter {
-    ($item: expr, $filter: expr) => {
-        $filter.is_none() || $filter.is_some() && $item.contains::<&str>($filter.as_ref().unwrap())
+    ($item: expr, $filter: expr, $filter_cat: expr) => {
+        match ($filter, $filter_cat){
+            (Some(f),Some(FilterCat::Host)) => $item.host().contains::<&str>(f),
+            (Some(f),Some(FilterCat::Code)) => $item.status() == f.parse::<usize>().unwrap(),
+            (Some(f),Some(FilterCat::Source)) => $item.remote_addr().contains::<&str>(f),
+            (Some(f),Some(FilterCat::Path)) => $item.uri().contains::<&str>(f),
+            (None, _) => true,
+            (Some(f), None) => $item.host().contains::<&str>(f),
+        }
     };
 }
