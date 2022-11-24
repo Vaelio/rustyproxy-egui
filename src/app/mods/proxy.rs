@@ -1,138 +1,56 @@
-use super::components::W;
-use crate::app::backend::dbutils;
-use crate::app::mods::View;
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct Proxy {
-    is_open: bool,
-    is_minimized: bool,
-    secret_input: String,
-    secret: Option<String>,
-    api_addr_input: String,
-    api_addr: Option<String>,
-    api_port_input: String,
-    api_port: Option<usize>,
-    is_remote: bool,
-}
-
-impl Default for Proxy {
-    fn default() -> Self {
-        Self {
-            is_open: true,
-            is_minimized: false,
-            secret_input: String::new(),
-            secret: None,
-            api_addr_input: String::new(),
-            api_addr: None,
-            api_port_input: String::new(),
-            api_port: None,
-            is_remote: false,
-        }
-    }
-}
-
-impl W for Proxy {}
-
-impl super::Component for Proxy {
-    fn name(&self) -> &'static str {
-        "Proxy"
-    }
-
-    fn show(&mut self, ctx: &egui::Context, _open: &mut bool, path: &mut Option<String>) {
-        if self.is_open {
-            egui::Window::new("Proxy")
-                .scroll2([false, false])
-                .resizable(true)
-                .title_bar(false)
-                .id(egui::Id::new("ProxySettings"))
-                .show(ctx, |ui| self.ui(ui, path));
-        }
-    }
-
-    fn get_api_secret(&self) -> Option<String> {
-        self.secret.clone()
-    }
-
-    fn get_api_addr(&self) -> Option<String> {
-        self.api_addr.clone()
-    }
-
-    fn get_api_port(&self) -> Option<usize> {
-        self.api_port.clone()
-    }
-
-    fn get_is_remote(&self) -> bool {
-        self.is_remote
-    }
-}
-
-impl super::View for Proxy {
-    fn ui(&mut self, ui: &mut egui::Ui, path: &mut Option<String>) {
-        /* prepare layout */
-        ui.vertical(|ui| {
-            /* bar with title and stuff */
-            egui::menu::bar(ui, |ui| {
+#[macro_export]
+macro_rules! proxy_ui {
+    ($ui: expr, $w: expr, $api_addr_input: expr, $api_port_input: expr, $api_secret_input: expr) => {
+        {
+            $ui.vertical(|ui| {
+                if ui.button("🗀 Open Local Project").clicked() {
+                    todo!();
+                }
+                ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label("Project Settings");
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
-                        let bt = if self.is_minimized { "+" } else { "-" };
-                        if ui.button(bt).clicked() {
-                            self.is_minimized = !self.is_minimized;
-                            ui.ctx().request_repaint();
-                        }
-                        ui.separator();
-                    });
+                    ui.label("Api address:");
+                    ui.text_edit_singleline($api_addr_input);
                 });
-            });
-            ui.separator();
-            /* open local project */
-            if !self.is_minimized {
-                ui.vertical(|ui| {
-                    if ui.button("🗀 Open Local Project").clicked() {
-                        if let Some(fpath) = rfd::FileDialog::new().pick_folder() {
-                            let fpath = fpath.display().to_string();
-                            if dbutils::is_valid_project_path(&fpath) {
-                                let _ = path.insert(fpath);
-                                self.is_open = false;
-                            }
+                ui.horizontal(|ui| {
+                    ui.label("Api port:");
+                    ui.text_edit_singleline($api_port_input);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Api Secret:");
+                    ui.text_edit_singleline($api_secret_input);
+                });
+                ui.horizontal(|ui| {
+                    /* connect */
+                    if ui.button("Connect").clicked() || ui.input().key_pressed(egui::Key::Enter) {
+
+                        $w.api_addr = if !$api_addr_input.is_empty() {
+                            Some($api_addr_input.to_string())
+                        } else {
+                            None
+                        };
+
+                        $w.api_port = if !$api_port_input.is_empty() {
+                            let p = $api_port_input.parse::<usize>();
+                            Some(p.unwrap_or(8443))
+                        } else {
+                            None
+                        };
+
+                        $w.api_secret = if !$api_secret_input.is_empty() {
+                            Some($api_secret_input.to_string())
+                        } else {
+                            None
+                        };
+
+                        if $w.api_addr.is_some() && $w.api_port.is_some() && $w.api_secret.is_some() {
+                            $w.clicked = true;
+                            $w.is_remote = true;
                         }
                     }
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        ui.label("Api address:");
-                        ui.text_edit_singleline(&mut self.api_addr_input);
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label("Api port:");
-                        ui.text_edit_singleline(&mut self.api_port_input);
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label("Api Secret:");
-                        ui.text_edit_singleline(&mut self.secret_input);
-                    });
-                    ui.horizontal(|ui| {
-                        /* connect */
-                        if ui.button("Connect").clicked() {
-                            let _ = path.insert("Remote Project".to_string());
-                            self.is_remote = true;
-                            if !self.secret_input.is_empty() {
-                                self.secret = Some(self.secret_input.to_owned());
-                            }
-                            if !self.api_addr_input.is_empty() {
-                                self.api_addr = Some(self.api_addr_input.to_owned());
-                            }
-                            if !self.api_port_input.is_empty() {
-                                let port: usize = self.api_port_input.parse().unwrap();
-                                self.api_port = Some(port);
-                            }
-                            self.is_open = false;
-                        }
-                    });
                 });
-            }
-        });
+            });
+        }
+        
     }
+    
 }
-
-impl Proxy {}

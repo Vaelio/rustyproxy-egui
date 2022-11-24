@@ -14,7 +14,7 @@ pub fn is_valid_project_path(fpath: &String) -> bool {
     false
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct HistLine {
     id: usize,
     remote_addr: String,

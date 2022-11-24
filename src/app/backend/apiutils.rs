@@ -8,8 +8,8 @@ pub fn get_new_from_last_id(
 ) -> Result<String, reqwest::Error> {
     let mut headers = HeaderMap::new();
     headers.insert(
-        HeaderName::from_bytes(b"Authentication").unwrap(),
-        HeaderValue::from_bytes(format!("Bearer {}", secret).as_bytes()).unwrap(),
+        HeaderName::from_bytes(b"rp_auth").unwrap(),
+        HeaderValue::from_bytes(format!("{}", secret).as_bytes()).unwrap(),
     );
     let cli = reqwest::blocking::Client::builder()
         .danger_accept_invalid_certs(true)
@@ -18,7 +18,6 @@ pub fn get_new_from_last_id(
     let r = cli
         .get(format!("https://{}/api/requests/{}", url, last_id))
         .send();
-
     match r {
         Ok(r) => r.text(),
         Err(e) => {
