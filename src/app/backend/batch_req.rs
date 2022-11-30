@@ -87,8 +87,9 @@ impl BatchRequest {
         let batch_size = if payloads.len() < 1000 {
             250
         } else {
-            payloads.len() / 1000 + usize::from(payloads.len() % 1000 != 0)
+            payloads.len() / 100 + usize::from(payloads.len() % 100 != 0)
         };
+        println!("{}", batch_size);
 
         for (idx_worker, batch) in Self::split(payloads, batch_size).into_iter().enumerate() {
             let promise =

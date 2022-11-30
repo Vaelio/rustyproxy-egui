@@ -1,17 +1,14 @@
 use crate::app::backend::batch_req;
-use poll_promise::Promise;
-use crate::{paginate, row, tbl_dyn_col};
-use reqwest::header::HeaderMap;
-use egui_extras::{Size, TableBuilder};
+use crate::app::backend::dbutils::HistLine;
 use crate::app::mods::filter_cat::FilterCat;
-use std::ops::Range;
+use poll_promise::Promise;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::fmt::Write as fWrite;
 
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub enum ActiveInspectorMenu {
     Default,
     Repeater,
@@ -37,6 +34,7 @@ pub struct Inspector {
     #[serde(skip)]
     pub response_promise: Option<Promise<Result<String, reqwest::Error>>>,
     pub ssl: bool,
+    pub selected: Option<(usize, String, String, String, String, String)>,
     pub target: String,
     #[serde(skip)]
     pub active_window: ActiveInspectorMenu,
@@ -57,8 +55,6 @@ pub struct Inspector {
     #[serde(skip)]
     pub bf_items_per_page: usize,
     #[serde(skip)]
-    pub childs: Vec<Inspector>,
-    #[serde(skip)]
     pub bf_filter_input: String,
     #[serde(skip)]
     pub bf_filter: Option<String>,
@@ -67,279 +63,307 @@ pub struct Inspector {
 }
 
 
-pub fn inspect(ui: &mut egui::Ui, inspected: &mut Inspector) {
-    egui::menu::bar(ui, |ui| {
-        if ui.button("☰ Default").clicked() {
-            inspected.active_window = ActiveInspectorMenu::Default;
+impl Inspector {
+    pub fn from_histline(h: &HistLine) -> Self {
+        Self {
+            id: h.id(),
+            source: h.remote_addr().to_string(),
+            request: h.raw().to_string(),
+            response: h.response().to_string(),
+            modified_request: h.raw().to_string(),
+            new_response: h.response().to_string(),
+            bf_request: h.raw().to_string(),
+            ssl: h.ssl(),
+            target: h.host().to_string(),
+            is_active: true,
+            is_minimized: false,
+            ..Default::default()
         }
-        ui.separator();
-        if ui.button("☰ Modify").clicked() {
-            inspected.active_window = ActiveInspectorMenu::Repeater;
-        }
-        ui.separator();
-        if ui.button("☰ Bruteforce").clicked() {
-            inspected.active_window = ActiveInspectorMenu::Intruder;
-        }
-        ui.separator();
-        ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
-            ui.horizontal(|ui| {
-                if ui.button("x").clicked() {
-                    inspected.is_active = false;
-                    ui.ctx().request_repaint();
-                }
-                ui.separator();
-                let bt = if inspected.is_minimized { "+" } else { "-" };
-                if ui.button(bt).clicked() {
-                    inspected.is_minimized = !inspected.is_minimized;
-                    ui.ctx().request_repaint();
-                }
-                ui.separator();
-                ui.label(format!("{} <-> {}", &inspected.source, &inspected.target));
-                ui.label("💻 ");
-                ui.separator();
-                if inspected.ssl {
-                    ui.label("true");
-                } else {
-                    ui.label("false");
-                }
-                ui.label("ssl: ");
-                ui.separator();
-                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                    ui.label(format!("Viewing #{}", inspected.id));
-                });
-            });
-        });
-    });
-    ui.separator();
-    if !inspected.is_minimized {
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            match inspected.active_window {
-                ActiveInspectorMenu::Repeater => {
-                    egui::menu::bar(ui, |ui| {
-                        if ui.button("⚠ Reset").clicked() {
-                            inspected.modified_request =
-                                inspected.request.to_string().replace('\r', "\\r\\n");
-                            inspected.new_response = inspected.response.to_string();
-                        }
-                        ui.separator();
-                        if ui.button("☰ Save Modified Request").clicked() {
-                            if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(
-                                    path,
-                                    &inspected.modified_request.replace("\\r\\n", "\r"),
-                                );
-                            }
-                        }
-                        ui.separator();
-                        if ui.button("☰ Copy as Curl").clicked() {
-                            copy_as_curl(
-                                ui,
-                                &inspected.modified_request.replace("\\r\\n", "\r"),
-                                inspected.ssl,
-                                &inspected.target,
-                            );
-                        }
-                        ui.separator();
-                        if ui.button("✉ Send").clicked() {
-                            /* Parse request */
-                            let request = inspected.modified_request.replace("\\r\\n", "\r");
-                            let method = request.split(' ').take(1).collect::<String>();
-                            let uri = request.split(' ').skip(1).take(1).collect::<String>();
-                            let url = format!(
-                                "{}://{}{}",
-                                if inspected.ssl { "https" } else { "http" },
-                                inspected.target,
-                                uri
-                            );
-                            let body = request
-                                .split("\r\n\r\n")
-                                .skip(1)
-                                .take(1)
-                                .collect::<String>()
-                                .as_bytes()
-                                .to_vec();
-                            let mut headers = HeaderMap::new();
-                            for header in request
-                                .split("\r\n")
-                                .skip(1)
-                                .map_while(|x| if !x.is_empty() { Some(x) } else { None })
-                                .collect::<Vec<&str>>()
-                            {
-                                let name = reqwest::header::HeaderName::from_bytes(
-                                    header.split(": ").take(1).collect::<String>().as_bytes(),
-                                )
-                                .unwrap();
-                                let value = reqwest::header::HeaderValue::from_bytes(
-                                    header.split(": ").skip(1).collect::<String>().as_bytes(),
-                                )
-                                .unwrap();
-                                headers.insert(name, value);
-                            }
-
-                            /* Actually send the request */
-                            let promise = inspected.response_promise.get_or_insert_with(|| {
-                                Promise::spawn_thread("rq", move || {
-                                    let cli = reqwest::blocking::Client::builder()
-                                        .danger_accept_invalid_certs(true)
-                                        .default_headers(headers)
-                                        .redirect(reqwest::redirect::Policy::none())
-                                        .build()
-                                        .unwrap();
-
-                                    cli.request(
-                                        reqwest::Method::from_bytes(method.as_bytes()).unwrap(),
-                                        url,
-                                    )
-                                    .body(body)
-                                    .send()
-                                    .map(move |r| {
-                                        let headers: String = r
-                                            .headers()
-                                            .iter()
-                                            .map(|(key, value)| {
-                                                format!("{}: {}\r\n", key, value.to_str().unwrap())
-                                            })
-                                            .collect();
-                                        format!(
-                                            "{:?} {} {}\r\n{}\r\n{}",
-                                            r.version(),
-                                            r.status().as_str(),
-                                            r.status().canonical_reason().unwrap(),
-                                            headers,
-                                            r.text().unwrap()
-                                        )
-                                    })
-                                })
-                            });
-
-                            if let Some(Ok(s)) = promise.ready() {
-                                inspected.new_response = s.to_string();
-                                inspected.response_promise = None;
-                                ui.ctx().request_repaint();
-                            }
-                        }
-                        ui.separator();
-                    });
-                    if let Some(p) = &inspected.response_promise {
-                        if let Some(Ok(s)) = p.ready() {
-                            inspected.new_response = s.to_string();
-                            inspected.response_promise = None;
-                            ui.ctx().request_repaint();
-                        }
-                    }
-                    ui.separator();
-                    code_edit_ui(ui, &mut inspected.modified_request);
-                    ui.separator();
-                    code_view_ui(ui, &inspected.new_response);
-                }
-                ActiveInspectorMenu::Default => {
-                    egui::menu::bar(ui, |ui| {
-                        if ui.button("☰ Save Request").clicked() {
-                            if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(
-                                    path,
-                                    &inspected.request.replace("\r\n", "\r"),
-                                );
-                            }
-                        }
-                        ui.separator();
-                        if ui.button("☰ Save All").clicked() {
-                            if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(
-                                    path,
-                                    &serde_json::to_string(&inspected).unwrap(),
-                                );
-                            }
-                        }
-                        ui.separator();
-                        if ui.button("☰ Copy as Curl").clicked() {
-                            copy_as_curl(ui, &inspected.request, inspected.ssl, &inspected.target);
-                        }
-                        ui.separator();
-                    });
-                    ui.separator();
-                    code_view_ui(ui, &inspected.request);
-                    ui.separator();
-                    code_view_ui(ui, &inspected.response);
-                }
-                ActiveInspectorMenu::Intruder => {
-                    egui::menu::bar(ui, |ui| {
-                        if ui.button("⚠ Reset").clicked() {
-                            inspected.bf_request =
-                                inspected.request.to_string().replace('\r', "\\r\\n");
-                        }
-                        ui.separator();
-                        if ui.button("☰ Save Modified Request").clicked() {
-                            if let Some(path) = rfd::FileDialog::new().save_file() {
-                                save_content_to_file(
-                                    path,
-                                    &inspected.modified_request.replace("\\r\\n", "\r"),
-                                );
-                            }
-                        }
-                        ui.separator();
-                        if ui.button("✉ Send").clicked() {
-                            /* Actually start bruteforcing */
-                            let requests: Vec<String> = inspected
-                                .bf_payload
-                                .iter()
-                                .map(|p| {
-                                    inspected
-                                        .bf_request
-                                        .replace("\\r\\n", "\r")
-                                        .replace("$[PAYLOAD]$", p)
-                                })
-                                .collect();
-                            inspected.bf_payload_prepared = batch_req::Request::from_strings(
-                                requests,
-                                inspected.ssl,
-                                inspected.target.to_string(),
-                            );
-                            batch_req::BatchRequest::run(
-                                &inspected.bf_payload_prepared,
-                                &mut inspected.bf_promises,
-                            );
-                        }
-                        ui.separator();
-                        if ui.button("☰ Load Payloads from File").clicked() {
-                            if let Some(path) = rfd::FileDialog::new().pick_file() {
-                                if let Some(payload) = load_content_from_file(path) {
-                                    inspected.bf_payload = payload
-                                        .split('\n')
-                                        .map(|v| v.trim_end().to_string())
-                                        .collect::<Vec<String>>();
-                                }
-                            }
-                        }
-                        ui.separator();
-                        ui.label(format!("Number of request: {}", inspected.bf_payload.len()));
-                        ui.separator();
-                    });
-                    ui.separator();
-                    code_edit_ui(ui, &mut inspected.bf_request);
-                    ui.separator();
-                    tbl_ui_bf(ui, inspected);
-                }
-            }
-        });
     }
 }
 
-fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
-    egui::ScrollArea::both()
-        .max_width(1000.0)
-        .max_height(400.0)
-        .show(ui, |ui| {
+
+impl std::fmt::Debug for Inspector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>  {
+        write!(f, "Inspector #{} ", self.id)?;
+        write!(f, "source: {} ", self.source)?;
+        write!(f, "is_active: {} ", self.is_active)?;
+        write!(f, "is_minimized: {} ", self.is_minimized)?;
+        write!(f, "active_window: {:?} ", self.active_window)?;
+        Ok(())
+    }
+}
+
+#[macro_export]
+macro_rules! inspector_ui {
+    ($ui: expr, $w: expr, $inspected: expr) => {
+        egui::menu::bar($ui, |ui| {
+            if ui.button("☰ Default").clicked() {
+                $inspected.active_window = ActiveInspectorMenu::Default;
+            }
+            ui.separator();
+            if ui.button("☰ Modify").clicked() {
+                $inspected.active_window = ActiveInspectorMenu::Repeater;
+            }
+            ui.separator();
+            if ui.button("☰ Bruteforce").clicked() {
+                $inspected.active_window = ActiveInspectorMenu::Intruder;
+            }
+            ui.separator();
+            ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("x").clicked() {
+                        $inspected.is_active = false;
+                        ui.ctx().request_repaint();
+                    }
+                    ui.separator();
+                    let bt = if $inspected.is_minimized { "+" } else { "-" };
+                    if ui.button(bt).clicked() {
+                        $inspected.is_minimized = !$inspected.is_minimized;
+                        ui.ctx().request_repaint();
+                    }
+                    ui.separator();
+                    ui.label(format!("{} <-> {}", &$inspected.source, &$inspected.target));
+                    ui.label("💻 ");
+                    ui.separator();
+                    if $inspected.ssl {
+                        ui.label("true");
+                    } else {
+                        ui.label("false");
+                    }
+                    ui.label("ssl: ");
+                    ui.separator();
+                    ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                        ui.label(format!("Viewing #{}", $inspected.id));
+                    });
+                });
+            });
+        });
+        $ui.separator();
+        if !$inspected.is_minimized {
+            egui::ScrollArea::vertical().show($ui, |ui| {
+                match $inspected.active_window {
+                    ActiveInspectorMenu::Repeater => {
+                        egui::menu::bar(ui, |ui| {
+                            if ui.button("⚠ Reset").clicked() {
+                                $inspected.modified_request =
+                                    $inspected.request.to_string().replace('\r', "\\r\\n");
+                                $inspected.new_response = $inspected.response.to_string();
+                            }
+                            ui.separator();
+                            if ui.button("☰ Save Modified Request").clicked() {
+                                if let Some(path) = rfd::FileDialog::new().save_file() {
+                                    save_content_to_file(
+                                        path,
+                                        &$inspected.modified_request.replace("\\r\\n", "\r"),
+                                    );
+                                }
+                            }
+                            ui.separator();
+                            if ui.button("☰ Copy as Curl").clicked() {
+                                copy_as_curl(
+                                    ui,
+                                    &$inspected.modified_request.replace("\\r\\n", "\r"),
+                                    $inspected.ssl,
+                                    &$inspected.target,
+                                );
+                            }
+                            ui.separator();
+                            if ui.button("✉ Send").clicked() {
+                                /* Parse request */
+                                let request = $inspected.modified_request.replace("\\r\\n", "\r");
+                                let method = request.split(' ').take(1).collect::<String>();
+                                let uri = request.split(' ').skip(1).take(1).collect::<String>();
+                                let url = format!(
+                                    "{}://{}{}",
+                                    if $inspected.ssl { "https" } else { "http" },
+                                    $inspected.target,
+                                    uri
+                                );
+                                let body = request
+                                    .split("\r\n\r\n")
+                                    .skip(1)
+                                    .take(1)
+                                    .collect::<String>()
+                                    .as_bytes()
+                                    .to_vec();
+                                let mut headers = HeaderMap::new();
+                                for header in request
+                                    .split("\r\n")
+                                    .skip(1)
+                                    .map_while(|x| if !x.is_empty() { Some(x) } else { None })
+                                    .collect::<Vec<&str>>()
+                                {
+                                    let name = reqwest::header::HeaderName::from_bytes(
+                                        header.split(": ").take(1).collect::<String>().as_bytes(),
+                                    )
+                                    .unwrap();
+                                    let value = reqwest::header::HeaderValue::from_bytes(
+                                        header.split(": ").skip(1).collect::<String>().as_bytes(),
+                                    )
+                                    .unwrap();
+                                    headers.insert(name, value);
+                                }
+                                /* Actually send the request */
+                                $inspected.response_promise.get_or_insert_with(|| {
+                                    Promise::spawn_thread("rq", move || {
+                                        let cli = reqwest::blocking::Client::builder()
+                                            .danger_accept_invalid_certs(true)
+                                            .default_headers(headers)
+                                            .redirect(reqwest::redirect::Policy::none())
+                                            .build()
+                                            .unwrap();
+
+                                        cli.request(
+                                            reqwest::Method::from_bytes(method.as_bytes()).unwrap(),
+                                            url,
+                                        )
+                                        .body(body)
+                                        .send()
+                                        .map(move |r| {
+                                            let headers: String = r
+                                                .headers()
+                                                .iter()
+                                                .map(|(key, value)| {
+                                                    format!("{}: {}\r\n", key, value.to_str().unwrap())
+                                                })
+                                                .collect();
+                                            format!(
+                                                "{:?} {} {}\r\n{}\r\n{}",
+                                                r.version(),
+                                                r.status().as_str(),
+                                                r.status().canonical_reason().unwrap(),
+                                                headers,
+                                                r.text().unwrap()
+                                            )
+                                        })
+                                    })
+                                });
+                                ui.ctx().request_repaint();
+                            }
+                            if $inspected.response_promise.is_some() {
+                                if let Some(Ok(s)) = $inspected.response_promise.as_ref().unwrap().ready() {
+                                    $inspected.new_response = s.to_string();
+                                    $inspected.response_promise = None;
+                                    ui.ctx().request_repaint();
+                                }
+                            }
+                            
+                        });
+                        ui.separator();
+                        code_edit_ui(ui, &mut $inspected.modified_request);
+                        ui.separator();
+                        code_view_ui(ui, &$inspected.new_response);
+                    }
+                    ActiveInspectorMenu::Default => {
+                        egui::menu::bar(ui, |ui| {
+                            if ui.button("☰ Save Request").clicked() {
+                                if let Some(path) = rfd::FileDialog::new().save_file() {
+                                    save_content_to_file(
+                                        path,
+                                        &$inspected.request.replace("\r\n", "\r"),
+                                    );
+                                }
+                            }
+                            ui.separator();
+                            if ui.button("☰ Save All").clicked() {
+                                if let Some(path) = rfd::FileDialog::new().save_file() {
+                                    save_content_to_file(
+                                        path,
+                                        &serde_json::to_string(&$inspected).unwrap(),
+                                    );
+                                }
+                            }
+                            ui.separator();
+                            if ui.button("☰ Copy as Curl").clicked() {
+                                copy_as_curl(ui, &$inspected.request, $inspected.ssl, &$inspected.target);
+                            }
+                            ui.separator();
+                        });
+                        ui.separator();
+                        code_view_ui(ui, &$inspected.request);
+                        ui.separator();
+                        code_view_ui(ui, &$inspected.response);
+                    }
+                    ActiveInspectorMenu::Intruder => {
+                        egui::menu::bar(ui, |ui| {
+                            if ui.button("⚠ Reset").clicked() {
+                                $inspected.bf_request =
+                                    $inspected.request.to_string().replace('\r', "\\r\\n");
+                            }
+                            ui.separator();
+                            if ui.button("☰ Save Modified Request").clicked() {
+                                if let Some(path) = rfd::FileDialog::new().save_file() {
+                                    save_content_to_file(
+                                        path,
+                                        &$inspected.modified_request.replace("\\r\\n", "\r"),
+                                    );
+                                }
+                            }
+                            ui.separator();
+                            if ui.button("✉ Send").clicked() {
+                                /* Actually start bruteforcing */
+                                let requests: Vec<String> = $inspected
+                                    .bf_payload
+                                    .iter()
+                                    .map(|p| {
+                                        $inspected
+                                            .bf_request
+                                            .replace("\\r\\n", "\r")
+                                            .replace("$[PAYLOAD]$", p)
+                                    })
+                                    .collect();
+                                $inspected.bf_payload_prepared = batch_req::Request::from_strings(
+                                    requests,
+                                    $inspected.ssl,
+                                    $inspected.target.to_string(),
+                                );
+                                batch_req::BatchRequest::run(
+                                    &$inspected.bf_payload_prepared,
+                                    &mut $inspected.bf_promises,
+                                );
+                            }
+                            ui.separator();
+                            if ui.button("☰ Load Payloads from File").clicked() {
+                                if let Some(path) = rfd::FileDialog::new().pick_file() {
+                                    if let Some(payload) = load_content_from_file(path) {
+                                        $inspected.bf_payload = payload
+                                            .split('\n')
+                                            .map(|v| v.trim_end().to_string())
+                                            .collect::<Vec<String>>();
+                                    }
+                                }
+                            }
+                            ui.separator();
+                            ui.label(format!("Number of request: {}", $inspected.bf_payload.len()));
+                            ui.separator();
+                        });
+                        ui.separator();
+                        code_edit_ui(ui, &mut $inspected.bf_request);
+                        ui.separator();
+                        tbl_ui_bf!(ui, $w, $inspected);
+                    }
+                }
+            });
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! tbl_ui_bf {
+    ($ui: expr, $w: expr, $inspected: expr) => {
+        egui::ScrollArea::both()
+        .show($ui, |ui| {
             let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
             tbl_dyn_col!(
                 ui,
                 |mut body| {
-                    inspected.bf_promises.retain(|prom| {
+                    $inspected.bf_promises.retain(|prom| {
                         if let Some(vr) = prom.ready() {
                             for r in vr {
                                 match r {
                                     Ok((idx, version, status, headers, text)) => {
-                                        inspected.bf_results.push((
+                                        $inspected.bf_results.push((
                                             *idx,
                                             version.to_string(),
                                             status.to_string(),
@@ -347,7 +371,7 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                                             text.to_string(),
                                         ))
                                     }
-                                    Err((idx, e)) => inspected.bf_results.push((
+                                    Err((idx, e)) => $inspected.bf_results.push((
                                         *idx,
                                         "SRVBUG".to_string(),
                                         e.to_string(),
@@ -361,80 +385,44 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                         prom.ready().is_none()
                     });
                     let range = paginate!(
-                        inspected.bf_current_page,
-                        inspected.bf_items_per_page,
-                        inspected.bf_results.len(),
-                        inspected.bf_filter
+                        $inspected.bf_current_page,
+                        $inspected.bf_items_per_page,
+                        $inspected.bf_results.len(),
+                        $inspected.bf_filter
                     );
-                    for r in &inspected.bf_results[range] {
+                    for r in &$inspected.bf_results[range] {
                         let (idx, version, status, headers, text) = r;
-                        let payload = inspected.bf_payload[*idx].to_string();
+                        let payload = $inspected.bf_payload[*idx].to_string();
                         body.row(text_height, |mut row| {
                             row!(
                                 row,
                                 {
-                                    let request =
-                                        inspected.bf_request.replace("$[PAYLOAD]$", &payload);
-                                    let response = format!(
-                                        "{} {}\r\n{}\r\n{}",
-                                        version, status, headers, text
+                                    $inspected.selected = Some(
+                                        (
+                                            idx.to_owned(), 
+                                            version.to_string(), 
+                                            status.to_string(), 
+                                            headers.to_string(), 
+                                            text.to_string(), 
+                                            payload.to_string(),
+                                        )
                                     );
-
-                                    let ins = Inspector {
-                                        id: *idx,
-                                        source: "".to_string(),
-                                        request: request.to_string(),
-                                        response: response.to_string(),
-                                        modified_request: request.replace('\r', "\\r\\n"),
-                                        new_response: response,
-                                        ssl: inspected.ssl,
-                                        target: inspected.target.to_string(),
-                                        is_active: true,
-                                        bf_request: request.to_string().replace('\r', "\\r\\n"),
-                                        ..Default::default()
-                                    };
-                                    inspected.childs.push(ins);
+                                    $w.clicked = true;
                                 },
                                 idx.to_string(),
                                 &payload,
                                 text.len().to_string(),
                                 status
                             );
-                            /*
-                            row.col(|ui| {
-                                if ui.button("🔍").clicked() {
-                                    let request =
-                                        inspected.bf_request.replace("$[PAYLOAD]$", &payload);
-                                    let response = format!(
-                                        "{} {}\r\n{}\r\n{}",
-                                        version, status, headers, text
-                                    );
-
-                                    let ins = Inspector {
-                                        id: *idx,
-                                        source: "".to_string(),
-                                        request: request.to_string(),
-                                        response: response.to_string(),
-                                        modified_request: request.replace('\r', "\\r\\n"),
-                                        new_response: response,
-                                        ssl: inspected.ssl,
-                                        target: inspected.target.to_string(),
-                                        is_active: true,
-                                        bf_request: request.to_string().replace('\r', "\\r\\n"),
-                                        ..Default::default()
-                                    };
-                                    inspected.childs.push(ins);
-                                }
-                            });*/
                         });
                     }
                 },
-                inspected.bf_current_page,
-                inspected.bf_items_per_page,
-                inspected.bf_results.len(),
-                inspected.bf_filter,
-                inspected.bf_filter_cat,
-                &mut inspected.bf_filter_input,
+                $inspected.bf_current_page,
+                $inspected.bf_items_per_page,
+                $inspected.bf_results.len(),
+                $inspected.bf_filter,
+                $inspected.bf_filter_cat,
+                &mut $inspected.bf_filter_input,
                 Size::exact(60.0),
                 Size::exact(400.0),
                 Size::exact(60.0),
@@ -442,9 +430,11 @@ fn tbl_ui_bf(ui: &mut egui::Ui, inspected: &mut Inspector) {
                 //Size::exact(60.0)
             );
         });
+    }
 }
 
-fn load_content_from_file(path: PathBuf) -> Option<String> {
+
+pub fn load_content_from_file(path: PathBuf) -> Option<String> {
     if let Ok(mut fd) = File::open(path) {
         let mut out = vec![];
         if fd.read_to_end(&mut out).is_ok() {
@@ -454,7 +444,7 @@ fn load_content_from_file(path: PathBuf) -> Option<String> {
     None
 }
 
-fn save_content_to_file(path: PathBuf, content: &String) -> bool {
+pub fn save_content_to_file(path: PathBuf, content: &String) -> bool {
     if let Ok(mut fd) = File::create(path) {
         if write!(fd, "{}", content).is_ok() {
             return true;
@@ -463,7 +453,7 @@ fn save_content_to_file(path: PathBuf, content: &String) -> bool {
     false
 }
 
-fn copy_as_curl(ui: &mut egui::Ui, content: &str, ssl: bool, target: &String) {
+pub fn copy_as_curl(ui: &mut egui::Ui, content: &str, ssl: bool, target: &String) {
     let method = content.split(' ').take(1).collect::<String>();
     let uri = content.split(' ').skip(1).take(1).collect::<String>();
     let url = format!("{}://{}{}", if ssl { "https" } else { "http" }, target, uri);
@@ -485,7 +475,7 @@ fn copy_as_curl(ui: &mut egui::Ui, content: &str, ssl: bool, target: &String) {
     ui.output().copied_text = scurl;
 }
 
-fn code_view_ui(ui: &mut egui::Ui, mut code: &str) {
+pub fn code_view_ui(ui: &mut egui::Ui, mut code: &str) {
     egui::TextEdit::multiline(&mut code)
         .font(egui::TextStyle::Monospace) // for cursor height
         .code_editor()
@@ -496,7 +486,7 @@ fn code_view_ui(ui: &mut egui::Ui, mut code: &str) {
         .show(ui);
 }
 
-fn code_edit_ui(ui: &mut egui::Ui, code: &mut String) {
+pub fn code_edit_ui(ui: &mut egui::Ui, code: &mut String) {
     egui::TextEdit::multiline(code)
         .font(egui::TextStyle::Monospace) // for cursor height
         .code_editor()

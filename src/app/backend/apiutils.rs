@@ -18,7 +18,6 @@ pub fn get_new_from_last_id(
     let r = cli
         .get(format!("https://{}/api/requests/{}", url, last_id))
         .send();
-
     match r {
         Ok(r) => r.text(),
         Err(e) => {
