@@ -81,7 +81,7 @@ macro_rules! paginate {
             start: $current_page * $items_per_page,
             end: ($current_page + 1) * $items_per_page,
         };
-        range.end = if range.end > $items_number || $filter.is_some() {
+        range.end = if range.end > $items_number {
             $items_number
         } else {
             range.end
