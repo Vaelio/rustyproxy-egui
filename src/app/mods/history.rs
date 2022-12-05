@@ -124,7 +124,7 @@ macro_rules! history_ui {
                                 last_id
                             };
                             $history.set_last_id(new_id);
-                            data_to_append.insert(0, row);
+                            data_to_append.push(row);
                         }
                         $history.reset_promise();
                         ui.ctx().request_repaint();
