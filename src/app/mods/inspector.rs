@@ -72,7 +72,7 @@ impl Inspector {
             response: h.response().to_string(),
             modified_request: h.raw().replace('\r', "\\r\\n"),
             new_response: h.response().to_string(),
-            bf_request: h.raw().to_string(),
+            bf_request: h.raw().replace('\r', "\\r\\n"),
             ssl: h.ssl(),
             target: h.host().to_string(),
             is_active: true,
