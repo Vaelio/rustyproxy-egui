@@ -124,7 +124,7 @@ macro_rules! history_ui {
                                 last_id
                             };
                             $history.set_last_id(new_id);
-                            data_to_append.insert(0, row);
+                            data_to_append.push(row);
                         }
                         $history.reset_promise();
                         ui.ctx().request_repaint();
@@ -139,48 +139,56 @@ macro_rules! history_ui {
                 $history.history_mut().insert(0, h.clone());
             }
             let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
-            let len = $history.last_id();
+            let mut len = $history.last_id();
             
             tbl_dyn_col!(
                 ui,
                 |mut body| {
+                    
+                    let mut selected = None;
+                    let filter = FilterCat::from_filtercat_opt(&$history.filter_cat);
+                    let mut hist =  vec![];
+                    for h in $history.history().clone().iter() {
+                        if filter!(h, &$history.filter, &filter) {
+                            hist.push(h.clone());
+                        }
+                    };
+                    if len != hist.len() {
+                        len = hist.len();
+                    }
                     let range = paginate!(
                         $history.current_page,
                         $history.items_per_page,
-                        len,
-                        &$history.filter
+                        len
                     );
-                    let mut selected = None;
-                    let filter = FilterCat::from_filtercat_opt(&$history.filter_cat);
-                    for item in &$history.history().clone()[range] {
-                        if filter!(item, &$history.filter, &filter) {
-                            let uri = if item.uri().len() > 50 {
-                                format!("{}[...]", &item.uri()[..50])
-                            } else {
-                                item.uri().to_owned()
-                            };
-                            let host = if item.host().len() > 11 {
-                                item.host()[..11].to_string()
-                            } else {
-                                item.host().to_owned()
-                            };
-                            body.row(text_height, |mut row| {
-                                row!(
-                                    row,
-                                    {
-                                        selected = Some(item.clone());
-                                    },
-                                    item.id().to_string(),
-                                    item.remote_addr().to_string(),
-                                    item.method().to_owned(),
-                                    uri,
-                                    host,
-                                    item.size().to_string(),
-                                    item.status().to_string(),
-                                    item.response_time().to_owned()
-                                );
-                            })
-                        }
+                    
+                    for item in &hist[range] {
+                        let uri = if item.uri().len() > 50 {
+                            format!("{}[...]", &item.uri()[..50])
+                        } else {
+                            item.uri().to_owned()
+                        };
+                        let host = if item.host().len() > 11 {
+                            item.host()[..11].to_string()
+                        } else {
+                            item.host().to_owned()
+                        };
+                        body.row(text_height, |mut row| {
+                            row!(
+                                row,
+                                {
+                                    selected = Some(item.clone());
+                                },
+                                item.id().to_string(),
+                                item.remote_addr().to_string(),
+                                item.method().to_owned(),
+                                uri,
+                                host,
+                                item.size().to_string(),
+                                item.status().to_string(),
+                                item.response_time().to_owned()
+                            );
+                        })
                     }
                     if selected.is_some() {
                         $w.clicked = true;

@@ -70,9 +70,9 @@ impl Inspector {
             source: h.remote_addr().to_string(),
             request: h.raw().to_string(),
             response: h.response().to_string(),
-            modified_request: h.raw().to_string(),
+            modified_request: h.raw().replace('\r', "\\r\\n"),
             new_response: h.response().to_string(),
-            bf_request: h.raw().to_string(),
+            bf_request: h.raw().replace('\r', "\\r\\n"),
             ssl: h.ssl(),
             target: h.host().to_string(),
             is_active: true,
@@ -387,8 +387,7 @@ macro_rules! tbl_ui_bf {
                     let range = paginate!(
                         $inspected.bf_current_page,
                         $inspected.bf_items_per_page,
-                        $inspected.bf_results.len(),
-                        $inspected.bf_filter
+                        $inspected.bf_results.len()
                     );
                     for r in &$inspected.bf_results[range] {
                         let (idx, version, status, headers, text) = r;

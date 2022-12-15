@@ -51,6 +51,8 @@ pub struct TemplateApp {
 
     #[serde(skip)]
     history: Option<History>,
+
+    zoom_level: String
 }
 
 #[derive(Debug)]
@@ -113,6 +115,7 @@ impl Default for TemplateApp {
             api_port_input: String::new(),
             api_secret_input: String::new(),
             history: None,
+            zoom_level: String::from("1.0"),
         }
     }
 }
@@ -164,6 +167,14 @@ impl eframe::App for TemplateApp {
                         frame.close();
                     }
                 });
+                ui.separator();
+                ui.label("Zoom: ");
+                let resp = ui.text_edit_singleline(&mut self.zoom_level);
+                if resp.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                    if let Ok(value) = self.zoom_level.parse::<f32>() {
+                        ctx.set_pixels_per_point(value);
+                    }
+                }
                 if let Some(picked_path) = &self.picked_path {
                     ui.with_layout(egui::Layout::top_down(egui::Align::RIGHT), |ui| {
                         ui.horizontal(|ui| {
